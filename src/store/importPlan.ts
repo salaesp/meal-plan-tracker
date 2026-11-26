@@ -1,5 +1,6 @@
 import { isRecord, parsePlan } from '../domain/parsing'
 import type { Plan } from '../domain/types'
+import { readPdfFile } from './pdfText'
 
 export interface Draft {
   plan: Plan
@@ -11,7 +12,7 @@ export class SessionExpiredError extends Error {}
 
 export async function importPlan(input: File | string): Promise<Draft> {
   const form = new FormData()
-  form.set(typeof input === 'string' ? 'text' : 'file', input)
+  form.set('text', typeof input === 'string' ? input : await readPdfFile(input))
 
   let response: Response
   try {

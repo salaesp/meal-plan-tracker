@@ -30,6 +30,8 @@ export default defineConfig({
       workbox: {
         // Incluye las fuentes para que funcionen offline.
         globPatterns: ['**/*.{js,css,html,woff2,svg,png}'],
+        // El lector de PDF pesa 1,6 MB y la carga con IA ya requiere conexión.
+        globIgnores: ['**/pdfjs-*.js'],
         // /api/* siempre va a la red (Worker e ingreso con Google).
         navigateFallbackDenylist: [/^\/api\//],
       },

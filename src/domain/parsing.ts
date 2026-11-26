@@ -78,6 +78,12 @@ export interface Extraction {
   general?: unknown
 }
 
+/** El modelo a veces arma una sección por colación: se juntan en una sola lista. */
+function mergeSingleOptions(sections: Section[]): Section[] {
+  if (sections.length < 3 || sections.some((section) => section.options.length > 2)) return sections
+  return [{ title: 'Opciones', rule: 'Elegí 1', options: sections.flatMap((section) => section.options) }]
+}
+
 export function planFromExtraction(extraction: Extraction, id: string, createdAt: string): Plan {
   const mains: Omit<Meal, 'id'>[] = []
   const groups = isRecord(extraction.mealGroups) ? asArray(extraction.mealGroups.groups) : []
@@ -98,7 +104,7 @@ export function planFromExtraction(extraction: Extraction, id: string, createdAt
   mains.sort((a, b) => rank(a.name) - rank(b.name))
 
   const snackData = isRecord(extraction.snacks) ? extraction.snacks : {}
-  const snackSections = parseSections(snackData.sections)
+  const snackSections = mergeSingleOptions(parseSections(snackData.sections))
   const requested = typeof snackData.perDay === 'number' ? Math.round(snackData.perDay) : 0
   const perDay = Math.min(MAX_SNACKS, Math.max(requested, snackSections.length ? 1 : 0))
   const snacks: Omit<Meal, 'id'>[] = Array.from({ length: perDay }, (_, index) => ({

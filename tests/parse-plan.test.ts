@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { handleParsePlan, MAX_TEXT_CHARS, type Ai } from '../worker/parse-plan'
+import { planFromExtraction } from '../src/domain/parsing'
+import { MAX_TEXT_CHARS, normalizePlanText, stripContactLines } from '../src/domain/planText'
+import { handleParsePlan, type Ai } from '../worker/parse-plan'
 
 const document = 'Desayuno: elegir una opción. '.repeat(10)
 const section = { title: 'Base', rule: 'Elegí 1', options: ['pan'] }
@@ -11,14 +13,13 @@ const answers = [
 ]
 
 function answerFor(input: Record<string, unknown>) {
-  const format = input.response_format as { json_schema: { properties: object } }
-  const keys = Object.keys(format.json_schema.properties)
+  const format = input.response_format as { json_schema: { schema: { properties: object } } }
+  const keys = Object.keys(format.json_schema.schema.properties)
   return answers[keys.includes('groups') ? 0 : keys.includes('perDay') ? 1 : 2]!
 }
 
 const fakeAi = (overrides: Partial<Ai> = {}): Ai => ({
   run: vi.fn(async (_model, input) => ({ response: answerFor(input) })),
-  toMarkdown: vi.fn(async () => ({ format: 'markdown', data: document })),
   ...overrides,
 })
 
@@ -39,11 +40,54 @@ describe('POST /api/parse-plan', () => {
     expect(body.sourceText).toBe(document.trim())
   })
 
-  it('convierte el PDF antes de extraer', async () => {
+  it('no manda a la IA las líneas de contacto o identidad', async () => {
     const ai = fakeAi()
-    const pdf = new File(['%PDF'], 'mi plan.pdf', { type: 'application/pdf' })
-    expect((await post(ai, request({ file: pdf }))).status).toBe(200)
-    expect(ai.toMarkdown).toHaveBeenCalledOnce()
+    const letterhead =
+      'Ana Ejemplo\nLic. en Nutrición\nTel.: 11 0000-0000\nPaciente: Persona Prueba\nmail@ejemplo.test\n'
+    expect((await post(ai, request({ text: letterhead + document }))).status).toBe(200)
+    const sent = JSON.stringify(vi.mocked(ai.run).mock.calls)
+    for (const secret of ['Ana Ejemplo', '0000-0000', 'Persona Prueba', 'mail@ejemplo']) {
+      expect(sent).not.toContain(secret)
+    }
+    expect(sent).toContain('Desayuno')
+  })
+
+  it('lee respuestas en formato chat', async () => {
+    const ai = fakeAi({
+      run: vi.fn(async (_model, input) => ({
+        choices: [{ message: { content: JSON.stringify(answerFor(input)) } }],
+      })),
+    })
+    expect((await post(ai, request({ text: document }))).status).toBe(200)
+  })
+
+  it('convierte viñetas de Word y une renglones cortados', () => {
+    const raw = 'Proteínas\r\n Carne magra, cuadril,\r\nPeceto o paleta (sin\r\ngrasa)\r\n• Pollo\r\nFormas de preparación'
+    expect(normalizePlanText(raw)).toBe(
+      'Proteínas\n- Carne magra, cuadril, Peceto o paleta (sin grasa)\n- Pollo\nFormas de preparación',
+    )
+  })
+
+  it('junta las colaciones que llegan una por sección', () => {
+    const one = (option: string) => ({ title: option, rule: '', options: [option] })
+    const plan = planFromExtraction(
+      { snacks: { perDay: 2, sections: [one('Fruta'), one('Huevo'), one('Barra')] } },
+      'x',
+      '2026-01-01',
+    )
+    expect(plan.meals[0]?.sections).toEqual([{ title: 'Opciones', rule: 'Elegí 1', options: ['Fruta', 'Huevo', 'Barra'] }])
+  })
+
+  it('el filtro de contacto no toca alimentos ni cantidades', () => {
+    const plan = 'Desayuno\n2 rodajas de pan (50 gr)\nTelitas de arroz: 2 unidades\nCelery: libre'
+    expect(stripContactLines(plan)).toBe(plan)
+  })
+
+  it('si la IA no encuentra comidas lo dice sin registrar el contenido', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ai = fakeAi({ run: vi.fn(async () => ({ response: {} })) })
+    expect((await post(ai, request({ text: document }))).status).toBe(422)
+    expect(warn).toHaveBeenCalledWith('parse-plan sin comidas', { caracteres: document.trim().length })
   })
 
   it('acepta la respuesta como string JSON y reintenta una vez', async () => {
@@ -64,7 +108,7 @@ describe('POST /api/parse-plan', () => {
   it.each([
     ['texto corto', request({ text: 'hola' }), 422],
     ['texto enorme', request({ text: 'a'.repeat(MAX_TEXT_CHARS + 1) }), 413],
-    ['archivo no PDF', request({ file: new File(['x'], 'a.png', { type: 'image/png' }) }), 415],
+    ['un archivo en lugar de texto', request({ file: new File(['x'], 'a.pdf') }), 422],
     ['otro origen', request({ text: document }, { origin: 'https://otro.test' }), 403],
   ])('rechaza %s sin gastar IA', async (_name, req, status) => {
     const ai = fakeAi()

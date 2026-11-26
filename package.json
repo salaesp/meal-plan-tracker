@@ -21,7 +21,8 @@
     "@fontsource-variable/fraunces": "^5.3.0",
     "better-auth": "^1.7.28",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "unpdf": "^2.2.2"
   },
   "devDependencies": {
     "@types/react": "^19.3.3",

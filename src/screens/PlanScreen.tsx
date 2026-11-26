@@ -141,7 +141,10 @@ export function PlanScreen({ account, data, update, today, hasDraft, onDraft }: 
         <button type="button" className="button block" disabled={!input || loading} onClick={analyze}>
           {loading ? 'Leyendo el plan… puede tardar un minuto' : 'Analizar con IA'}
         </button>
-        <p className="hint">El documento se envía a Cloudflare Workers AI. Antes de activarlo vas a revisarlo.</p>
+        <p className="hint">
+          El PDF se lee en tu dispositivo y solo el texto se envía a Cloudflare Workers AI. Antes de activarlo vas a
+          revisarlo.
+        </p>
         {error && (
           <p className="notice error" role="alert">
             {error}

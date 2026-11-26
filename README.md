@@ -57,11 +57,12 @@ La app queda en `https://meal-plan-tracker.salaesp.workers.dev`.
 ## Carga de planes
 
 PDF con texto (máx. 5 MB) o texto pegado (máx. 30.000 caracteres). El borrador se revisa antes de
-activarse y rige desde ese día; los días anteriores conservan su plan. PDFs escaneados y colores
-del documento no se interpretan.
+activarse y rige desde ese día; los días anteriores conservan su plan. El PDF se lee en el
+dispositivo con pdf.js y solo el texto llega a la IA, sin las líneas de contacto. PDFs escaneados y
+colores del documento no se interpretan.
 
-Consumo estimado según el precio publicado del modelo: unas 1.000 neurons por carga, sobre 10.000
-gratis por día. No está medido.
+Modelo: `gpt-oss-120b`. Medido con un plan de 5 páginas: unos 35 segundos y 600 neurons por carga,
+sobre 10.000 gratis por día.
 
 ## Estructura
 
