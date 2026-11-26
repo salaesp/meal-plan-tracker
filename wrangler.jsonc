@@ -21,8 +21,7 @@
     {
       "binding": "DB",
       "database_name": "meal-plan-tracker",
-      // Reemplazar por el id que devuelve `wrangler d1 create meal-plan-tracker`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "e2524b7a-dd3a-40a4-b178-ba5948209e8d",
       "migrations_dir": "migrations"
     }
   ]
