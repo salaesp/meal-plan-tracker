@@ -1,6 +1,6 @@
 import { createAuthClient } from 'better-auth/react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { DRAFT_KEY } from '../store/draft'
+import { draftKeyFor } from '../store/draft'
 import { LoginScreen } from './LoginScreen'
 import { readCachedUser, resolveAuth, USER_KEY, type User } from './state'
 
@@ -58,7 +58,7 @@ export function AuthGate({ children }: { children: (account: Account) => ReactNo
     if (error) return 'No se pudo cerrar la sesión. Revisá tu conexión.'
     window.localStorage.removeItem(USER_KEY)
     // El borrador guarda texto del plan: no queda para la próxima persona.
-    window.localStorage.removeItem(DRAFT_KEY)
+    window.localStorage.removeItem(draftKeyFor(state.status === 'signed-in' ? state.user.id : null))
     setCached(null)
     setGuest(false)
     return null

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { DateNav, MealBadge, PlanOptions, StatusChoices, type Notify } from '../components/common'
+import { DateNav, MealBadge, PlanOptions, StatusChoices, useLongPress, useSwipe, type Notify } from '../components/common'
+import { QuickMenu } from '../components/QuickMenu'
 import { Icon, StatusIcon } from '../components/icons'
-import { addDays, dayAndMonth, longWeekday } from '../domain/dates'
+import { addDays, dayAndMonth, formatDay, longWeekday } from '../domain/dates'
 import { mealMoment, mealTheme } from '../domain/mealTheme'
 import { focusMeal, nextMeal, orderedMains, pendingMeals, snackMeals } from '../domain/schedule'
 import {
@@ -9,12 +10,17 @@ import {
   applyStatus,
   changeWater,
   checklist,
+  copyableDays,
+  copyDay,
   dayLog,
   dayScore,
   dessertKey,
+  hasLogged,
   planForDate,
   removeExtra,
+  restoreDay,
   statusInfo,
+  toggleTrained,
   WATER_STEP_ML,
 } from '../domain/tracking'
 import type { AppData, DayLog, Meal, Status } from '../domain/types'
@@ -66,6 +72,25 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
     }
   }
 
+  const [quick, setQuick] = useState<{ meal: Meal; anchor: DOMRect } | null>(null)
+  const [copying, setCopying] = useState(false)
+  const swipe = useSwipe({
+    left: () => date < today && (window.location.hash = `#/dia/${addDays(date, 1)}`),
+    right: () => {
+      window.location.hash = `#/dia/${addDays(date, -1)}`
+    },
+  })
+
+  const copyFrom = (from: string) => {
+    const before = data.days[date]
+    update((current) => copyDay(current, from, date))
+    setCopying(false)
+    notify({
+      text: `Copiaste ${formatDay(from)}`,
+      action: { label: 'Deshacer', run: () => update((current) => restoreDay(current, date, before)) },
+    })
+  }
+
   const mark = (key: string, status: Status) => {
     const before = log.items[key]?.status
     const after = before === status ? undefined : status
@@ -84,13 +109,11 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
         text: next ? 'Retomá en la próxima comida.' : 'Mañana retomás el plan.',
         action: next ? { label: `Ver ${next.name.toLowerCase()}`, run: () => open(next.id) } : undefined,
       })
-    } else if (key === mealId && after === 'skipped') {
-      notify({ text: 'Reforzá las próximas comidas para mantener el volumen.' })
     }
   }
 
   return (
-    <>
+    <div {...(openMealId || copying || quick ? {} : swipe)} className="day-screen">
       <DateNav
         unit="Día"
         eyebrow={isToday ? `Hoy · ${longWeekday(date)}` : longWeekday(date)}
@@ -108,6 +131,9 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           {score.marked} de {score.total} registradas
         </span>
         {!isToday && <a href="#/">Ir a hoy</a>}
+        <button type="button" className="link" onClick={() => setCopying(true)}>
+          Copiar otro día
+        </button>
       </div>
 
       {pending.length > 0 && (
@@ -152,7 +178,13 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           const position = focusIndex < 0 || index < focusIndex ? '' : index === focusIndex ? 'current' : 'upcoming'
           return (
             <li key={meal.id} className={position}>
-              <DayRow meal={meal} log={log} current={position === 'current'} onOpen={() => open(meal.id)} />
+              <DayRow
+                meal={meal}
+                log={log}
+                current={position === 'current'}
+                onOpen={() => open(meal.id)}
+                onLong={(anchor) => setQuick({ meal, anchor })}
+              />
             </li>
           )
         })}
@@ -165,7 +197,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           <ul className="snack-chips">
             {snackMeals(plan).map((meal) => (
               <li key={meal.id}>
-                <SnackChip meal={meal} log={log} onOpen={() => open(meal.id)} />
+                <SnackChip meal={meal} log={log} onOpen={() => open(meal.id)} onLong={(anchor) => setQuick({ meal, anchor })} />
               </li>
             ))}
           </ul>
@@ -178,7 +210,17 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
       {openMealId && (
         <MealSheet data={data} update={update} date={date} mealId={openMealId} onMark={mark} onClose={close} />
       )}
-    </>
+      {quick && (
+        <QuickMenu
+          title={quick.meal.name}
+          value={log.items[quick.meal.id]?.status}
+          anchor={quick.anchor}
+          onSelect={(status) => update((current) => applyStatus(current, date, quick.meal.id, status))}
+          onClose={() => setQuick(null)}
+        />
+      )}
+      {copying && <CopyDaySheet data={data} date={date} onPick={copyFrom} onClose={() => setCopying(false)} />}
+    </div>
   )
 }
 
@@ -240,15 +282,17 @@ interface RowProps {
   meal: Meal
   log: DayLog
   onOpen: () => void
+  onLong: (anchor: DOMRect) => void
 }
 
-function DayRow({ meal, log, current, onOpen }: RowProps & { current: boolean }) {
+function DayRow({ meal, log, current, onOpen, onLong }: RowProps & { current: boolean }) {
+  const press = useLongPress(onLong)
   const entry = log.items[meal.id]
   const dessert = log.items[dessertKey(meal.id)]?.status
   const hasNote = Boolean(entry?.note?.trim() || Object.keys(entry?.context ?? {}).length)
   const theme = mealTheme(meal)
   return (
-    <button type="button" className="day-row" onClick={onOpen}>
+    <button type="button" className="day-row" onClick={onOpen} {...press}>
       <StatusIcon status={entry?.status} size={32} />
       <span className="row-text">
         <span className="row-title">
@@ -274,10 +318,11 @@ function DayRow({ meal, log, current, onOpen }: RowProps & { current: boolean })
   )
 }
 
-function SnackChip({ meal, log, onOpen }: RowProps) {
+function SnackChip({ meal, log, onOpen, onLong }: RowProps) {
+  const press = useLongPress(onLong)
   const entry = log.items[meal.id]
   return (
-    <button type="button" className="snack-chip" onClick={onOpen}>
+    <button type="button" className="snack-chip" onClick={onOpen} {...press}>
       <StatusIcon status={entry?.status} size={32} />
       <span className="row-text">
         <span className="row-title">{meal.name}</span>
@@ -338,6 +383,16 @@ function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update
     <section className="card">
       <h2>Algo más</h2>
       <p className="hint">Lo que comiste fuera de las comidas, sin juzgar.</p>
+      <div className="chips extras-chips">
+        <button
+          type="button"
+          className="chip"
+          aria-pressed={Boolean(log.trained)}
+          onClick={() => update((current) => toggleTrained(current, date))}
+        >
+          Entrené
+        </button>
+      </div>
       {log.extras.length > 0 && (
         <ul className="extras">
           {log.extras.map((entry) => (
@@ -374,5 +429,56 @@ function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update
         </button>
       </form>
     </section>
+  )
+}
+
+function CopyDaySheet(props: { data: AppData; date: string; onPick: (from: string) => void; onClose: () => void }) {
+  const { data, date } = props
+  const days = copyableDays(data, date)
+  const replacing = hasLogged(data.days[date])
+  return (
+    <div className="sheet-backdrop" onClick={props.onClose}>
+      <div
+        className="sheet copy-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Copiar otro día"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="sheet-header copy-header">
+          <h2>Copiar otro día</h2>
+          <button type="button" className="icon-button" aria-label="Cerrar" onClick={props.onClose}>
+            <Icon name="close" />
+          </button>
+        </header>
+        <p className="hint">
+          Copia comidas, agua, extras y entrenamiento{replacing ? ', y reemplaza lo que ya cargaste hoy' : ''}. Podés deshacerlo.
+        </p>
+        {days.length === 0 && <p className="hint">Todavía no hay días anteriores con registro.</p>}
+        <ul className="copy-list">
+          {days.map((day) => {
+            const score = dayScore(data, day)
+            return (
+              <li key={day}>
+                <button type="button" className="copy-day" onClick={() => props.onPick(day)}>
+                  <strong>{formatDay(day)}</strong>
+                  <small>
+                    {score.marked} de {score.total} registradas
+                  </small>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        <label className="field">
+          Otra fecha
+          <input
+            type="date"
+            max={addDays(date, -1)}
+            onChange={(event) => event.target.value && data.days[event.target.value] && props.onPick(event.target.value)}
+          />
+        </label>
+      </div>
+    </div>
   )
 }

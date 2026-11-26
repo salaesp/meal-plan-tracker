@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { loadDraft, saveDraft } from './draft'
+import { draftKeyFor, loadDraft, saveDraft } from './draft'
 import { importPlan, SessionExpiredError, type Draft } from './importPlan'
 
 export interface PlanImport {
@@ -16,18 +16,22 @@ export interface PlanImport {
 }
 
 /** Vive por encima de las pantallas para no perder la lectura al navegar. */
-export function usePlanImport(): PlanImport {
-  const [draft, setDraftState] = useState(() => loadDraft(window.localStorage))
+export function usePlanImport(userId: string | null): PlanImport {
+  const key = draftKeyFor(userId)
+  const [draft, setDraftState] = useState(() => loadDraft(window.localStorage, key))
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [expired, setExpired] = useState(false)
   const [finished, setFinished] = useState(0)
   const controller = useRef<AbortController | null>(null)
 
-  const setDraft = useCallback((next: Draft | null) => {
-    saveDraft(window.localStorage, next)
-    setDraftState(next)
-  }, [])
+  const setDraft = useCallback(
+    (next: Draft | null) => {
+      saveDraft(window.localStorage, next, key)
+      setDraftState(next)
+    },
+    [key],
+  )
 
   const start = useCallback(
     async (input: File | string) => {

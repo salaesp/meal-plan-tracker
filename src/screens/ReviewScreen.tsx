@@ -20,6 +20,14 @@ function SectionsEditor({ sections, onChange }: { sections: Section[]; onChange:
             <input value={section.title} onChange={(event) => patch(index, { title: event.target.value })} />
           </label>
           <label className="field">
+            Cantidad
+            <input
+              value={section.quantity ?? ''}
+              placeholder="Ej. 300 g en crudo"
+              onChange={(event) => patch(index, { quantity: event.target.value })}
+            />
+          </label>
+          <label className="field">
             Regla
             <input
               value={section.rule}

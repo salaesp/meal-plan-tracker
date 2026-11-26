@@ -45,10 +45,19 @@ const TABS: { id: string; href: string; label: string; icon: IconName }[] = [
 ]
 
 export function App({ account }: { account: Account }) {
-  const { data, update, create, saveFailed, recovered } = useAppData()
-  const importer = usePlanImport()
+  const userId = account.user?.id ?? null
+  const { data, update, create, saveFailed, recovered, loading } = useAppData(userId, userId !== null && !account.offline)
+  const importer = usePlanImport(userId)
   const hash = useHash()
   const today = useToday()
+
+  if (loading) {
+    return (
+      <p className="splash" role="status">
+        Cargando tu plan…
+      </p>
+    )
+  }
 
   if (!data) {
     return (
