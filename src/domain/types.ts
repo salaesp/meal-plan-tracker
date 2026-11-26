@@ -1,4 +1,5 @@
-export type Status = 'done' | 'partial' | 'failed' | 'skipped'
+/** Sin estado = no la hice (o todavía no registrada). */
+export type Status = 'done' | 'partial' | 'failed'
 
 export interface Section {
   title: string
@@ -51,6 +52,8 @@ export interface DayLog {
   items: Record<string, ItemLog>
   waterMl: number
   extras: Extra[]
+  /** Entrené ese día. */
+  trained?: boolean
 }
 
 export interface Activation {

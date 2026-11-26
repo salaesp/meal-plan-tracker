@@ -9,12 +9,16 @@ import {
   addExtra,
   changeWater,
   checklist,
+  copyableDays,
+  copyDay,
   dayScore,
   planForDate,
+  restoreDay,
   setCombined,
   setItem,
   toggleContext,
   toggleStatus,
+  toggleTrained,
   weekInsight,
   weekRows,
   weekSummary,
@@ -81,11 +85,25 @@ describe('plan inicial', () => {
 describe('registro diario', () => {
   const date = '2026-11-26'
 
-  it('"No la hice" se registra pero no cuenta para el cumplimiento', () => {
+  it('lo que queda vacío no cuenta para el cumplimiento', () => {
     let data = toggleStatus(initialData(), date, 'desayuno', 'done')
     data = toggleStatus(data, date, 'almuerzo', 'partial')
-    data = toggleStatus(data, date, 'cena', 'skipped')
-    expect(dayScore(data, date)).toMatchObject({ marked: 3, counted: 2, total: 8, points: 1.5, ratio: 0.75 })
+    expect(dayScore(data, date)).toMatchObject({ marked: 2, total: 8, points: 1.5, ratio: 0.75 })
+  })
+
+  it('copia un día a otro y se puede deshacer', () => {
+    const from = '2026-11-25'
+    let data = toggleStatus(initialData(), from, 'desayuno', 'done')
+    data = toggleTrained(addExtra(changeWater(data, from, 1000), from, 'a', 'alfajor'), from)
+    data = toggleStatus(data, date, 'cena', 'failed')
+    const before = data.days[date]
+    const copied = copyDay(data, from, date)
+    expect(copied.days[date]).toMatchObject({ waterMl: 1000, trained: true })
+    expect(copied.days[date]?.items.desayuno?.status).toBe('done')
+    expect(copied.days[date]?.items.cena).toBeUndefined()
+    expect(copied.days[date]?.extras.map((extra) => extra.text)).toEqual(['alfajor'])
+    expect(restoreDay(copied, date, before).days[date]).toEqual(before)
+    expect(copyableDays(copied, date)).toEqual([from])
   })
 
   it('las colaciones combinadas se marcan juntas', () => {
@@ -133,13 +151,14 @@ describe('registro diario', () => {
     let data = toggleStatus(initialData(), date, 'cena', 'failed')
     data = toggleContext(data, date, 'cena', 'place', 'Afuera')
     data = toggleStatus(data, date, 'desayuno', 'done')
-    data = toggleStatus(data, date, 'merienda', 'skipped')
+    data = toggleTrained(data, date)
     data = addExtra(data, date, 'a', 'pizza', '18:30')
     data = toggleStatus(data, '2026-11-27', 'almuerzo', 'done')
     const summary = weekSummary(data, weekDates(date), date)
     expect(summary).toContain('Lun 23/11 al Jue 26/11')
-    expect(summary).toContain('Registradas: 3 de 32 (como el plan 1, distinto 1, no la hice 1)')
-    expect(summary).toContain('Cumplimiento sin contar comidas no hechas: 50%')
+    expect(summary).toContain('Registradas: 2 de 32 (como el plan 1, distinto 1)')
+    expect(summary).toContain('Cumplimiento de lo registrado: 50%')
+    expect(summary).toContain('Entrené')
     expect(summary).toContain('Cena: distinto — [afuera]')
     expect(summary).toContain('Algo más: 18:30 pizza')
     expect(summary).not.toContain('Vie 27/11')

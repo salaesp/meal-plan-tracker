@@ -41,7 +41,7 @@ function parseDay(date: string, value: unknown): DayLog | null {
       : [],
   )
   const waterMl = typeof value.waterMl === 'number' && value.waterMl > 0 ? value.waterMl : 0
-  return { date, planId: value.planId, items, waterMl, extras }
+  return { date, planId: value.planId, items, waterMl, extras, trained: value.trained === true ? true : undefined }
 }
 
 /** `null` si el contenido no es un guardado válido. */
