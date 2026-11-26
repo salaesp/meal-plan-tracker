@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+*.log
+.DS_Store
+
+# Planes y backups con datos personales
+*.pdf
+meal-plan-backup-*.json
+private/

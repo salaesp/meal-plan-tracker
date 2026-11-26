@@ -1,0 +1,4 @@
+# Solo estos paquetes pueden correr scripts de instalación (binarios nativos).
+allowBuilds:
+  esbuild: true
+  workerd: true
