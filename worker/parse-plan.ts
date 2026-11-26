@@ -2,7 +2,7 @@
  * POST /api/parse-plan — recibe un PDF o texto y devuelve un borrador de plan.
  * No guarda el archivo ni el texto.
  */
-import { isRecord, planFromExtraction, type Extraction } from '../../src/domain/parsing'
+import { isRecord, planFromExtraction, type Extraction } from '../src/domain/parsing'
 
 export const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -12,11 +12,6 @@ export const MAX_TEXT_CHARS = 30_000
 export interface Ai {
   run(model: string, input: Record<string, unknown>): Promise<unknown>
   toMarkdown(file: { name: string; blob: Blob }): Promise<unknown>
-}
-
-interface Context {
-  request: Request
-  env: { AI?: Ai }
 }
 
 const text = { type: 'string' }
@@ -137,11 +132,11 @@ async function readDocument(ai: Ai, form: FormData): Promise<string> {
 const json = (status: number, body: unknown) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } })
 
-export async function onRequestPost({ request, env }: Context): Promise<Response> {
+export async function handleParsePlan(request: Request, ai: Ai | undefined): Promise<Response> {
   try {
     const origin = request.headers.get('origin')
     if (origin && origin !== new URL(request.url).origin) throw new HttpError(403, 'Origen no permitido.')
-    if (!env.AI) throw new HttpError(500, 'Falta el binding de Workers AI.')
+    if (!ai) throw new HttpError(500, 'Falta el binding de Workers AI.')
     if (Number(request.headers.get('content-length') ?? 0) > MAX_FILE_BYTES + 100_000) {
       throw new HttpError(413, 'El archivo supera los 5 MB.')
     }
@@ -149,7 +144,7 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
     const form = await request.formData().catch(() => {
       throw new HttpError(400, 'Pedido inválido.')
     })
-    const document = (await readDocument(env.AI, form)).trim()
+    const document = (await readDocument(ai, form)).trim()
     if (document.length < 100) {
       throw new HttpError(422, 'No encontré texto suficiente. Si el PDF es una foto o escaneo, pegá el texto.')
     }
@@ -157,7 +152,6 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
       throw new HttpError(413, 'El plan es demasiado largo. Pegá solo las partes de comidas e indicaciones.')
     }
 
-    const ai = env.AI
     const [mealGroups, snacks, general] = await Promise.all([
       runTask(ai, document, TASKS.mealGroups),
       runTask(ai, document, TASKS.snacks),

@@ -1,9 +1,21 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "meal-plan-tracker",
-  "pages_build_output_dir": "./dist",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-11-20",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // El resto se sirve directo, sin ejecutar el Worker.
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true },
+  "vars": {
+    // Pública. En local la pisa .dev.vars.
+    "BETTER_AUTH_URL": "https://meal-plan-tracker.salaesp.workers.dev"
+  },
   "ai": { "binding": "AI" },
   "d1_databases": [
     {

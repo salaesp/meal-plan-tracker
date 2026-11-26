@@ -13,7 +13,7 @@ export interface D1 {
 export interface AuthEnv {
   DB?: D1
   BETTER_AUTH_SECRET?: string
-  /** Origen público de la app, ej. https://mi-app.pages.dev */
+  /** Origen público de la app, sin barra final. */
   BETTER_AUTH_URL?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string

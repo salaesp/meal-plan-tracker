@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   server: {
-    // `pnpm dev:api` levanta las Pages Functions en 8788. Se conserva el Host
+    // `pnpm dev:api` levanta el Worker en 8788. Se conserva el Host
     // para que el ingreso funcione en el origen del front.
     proxy: { '/api': { target: 'http://127.0.0.1:8788', changeOrigin: false } },
   },
@@ -30,7 +30,7 @@ export default defineConfig({
       workbox: {
         // Incluye las fuentes para que funcionen offline.
         globPatterns: ['**/*.{js,css,html,woff2,svg,png}'],
-        // /api/* siempre va a la red (Functions e ingreso con Google).
+        // /api/* siempre va a la red (Worker e ingreso con Google).
         navigateFallbackDenylist: [/^\/api\//],
       },
     }),

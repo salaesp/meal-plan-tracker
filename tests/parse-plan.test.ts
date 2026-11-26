@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_TEXT_CHARS, onRequestPost, type Ai } from '../functions/api/parse-plan'
+import { handleParsePlan, MAX_TEXT_CHARS, type Ai } from '../worker/parse-plan'
 
 const document = 'Desayuno: elegir una opción. '.repeat(10)
 const section = { title: 'Base', rule: 'Elegí 1', options: ['pan'] }
@@ -28,7 +28,7 @@ function request(fields: Record<string, string | File>, headers: Record<string, 
   return new Request('https://app.test/api/parse-plan', { method: 'POST', body: form, headers })
 }
 
-const post = (ai: Ai | undefined, req: Request) => onRequestPost({ request: req, env: { AI: ai } })
+const post = (ai: Ai | undefined, req: Request) => handleParsePlan(req, ai)
 
 describe('POST /api/parse-plan', () => {
   it('arma el plan desde texto', async () => {

@@ -13,7 +13,7 @@ Workers AI) se usa solo para leer un plan nuevo.
 ```bash
 pnpm install
 cp .dev.vars.example .dev.vars   # completar
-pnpm dev:api                     # Pages Functions + D1 local en :8788
+pnpm dev:api                     # Worker + D1 local en :8788
 pnpm dev                         # front en :5173 (redirige /api a :8788)
 pnpm check                       # tipos, tests y build
 ```
@@ -29,27 +29,28 @@ pnpm check                       # tipos, tests y build
    email como usuario de prueba).
 2. Credenciales → Crear ID de cliente OAuth → Aplicación web.
 3. URI de redirección autorizadas: `http://localhost:5173/api/auth/callback/google` y
-   `https://meal-plan-tracker.pages.dev/api/auth/callback/google`.
+   `https://meal-plan-tracker.salaesp.workers.dev/api/auth/callback/google`.
 4. Copiar el ID y el secreto en `.dev.vars` (local) y como secretos en Cloudflare (producción).
 
-## Primer deploy
+## Primer deploy (Cloudflare Workers)
 
-```bash
-pnpm exec wrangler login
-pnpm exec wrangler d1 create meal-plan-tracker
-```
+La app queda en `https://meal-plan-tracker.salaesp.workers.dev`.
 
-1. Pegar el `database_id` que devuelve en `wrangler.jsonc`.
-2. `pnpm exec wrangler pages project create meal-plan-tracker --production-branch main`
+1. `pnpm exec wrangler login`
+2. `pnpm exec wrangler d1 create meal-plan-tracker`, pegar el `database_id` en `wrangler.jsonc`
+   (si ofrece agregarlo solo, responder que no) y subir el cambio.
 3. Cargar los secretos, uno por comando:
-   `pnpm exec wrangler pages secret put BETTER_AUTH_SECRET` (aleatorio: `openssl rand -base64 32`),
-   `BETTER_AUTH_URL` (`https://meal-plan-tracker.pages.dev`; si Cloudflare asigna otro subdominio, usar ese), `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
-4. `pnpm run deploy` (con `run`: `pnpm deploy` es otro comando). Aplica migraciones y publica.
+   `pnpm exec wrangler secret put BETTER_AUTH_SECRET` (aleatorio: `openssl rand -base64 32`),
+   `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`. `BETTER_AUTH_URL` ya está en `wrangler.jsonc`.
+4. Publicar:
+   - **Desde GitHub (Workers Builds):** rama `main`, build command `pnpm build`, deploy command
+     `pnpm run deploy:ci` (aplica migraciones y publica).
+   - **Desde la compu:** `pnpm run deploy` (con `run`: `pnpm deploy` es otro comando).
 5. Abrir la URL en Chrome de Android → menú → **Instalar app**.
 
 ## Seguridad
 
-- Todo `/api/*` exige sesión salvo `/api/auth/*` (`functions/api/_middleware.ts`).
+- Todo `/api/*` exige sesión salvo `/api/auth/*` (`worker/index.ts`).
 - Los intentos de ingreso tienen límite guardado en D1.
 - Secretos solo en `.dev.vars` y en Cloudflare, nunca en el repositorio.
 
@@ -67,6 +68,6 @@ gratis por día. No está medido.
 - `src/domain/` — plan, registro diario, semana y validación (sin UI).
 - `src/data/seedPlan.ts` — plan de ejemplo genérico.
 - `src/auth/` — ingreso y estado de sesión.
-- `functions/`, `migrations/` — autenticación, API y base D1.
+- `worker/`, `migrations/` — autenticación, API y base D1.
 - `src/screens/` — Hoy, detalle, Semana, Plan y revisión.
-- `functions/api/parse-plan.ts` — extracción con Workers AI.
+- `worker/parse-plan.ts` — extracción con Workers AI.

@@ -4,15 +4,14 @@ import { getMigrations } from 'better-auth/db/migration'
 import { testUtils } from 'better-auth/plugins'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getPlatformProxy } from 'wrangler'
-import { onRequest as authRoute } from '../functions/api/auth/[[path]]'
-import { onRequest as middleware } from '../functions/api/_middleware'
-import { authOptions, type AuthEnv, type D1 } from '../functions/_lib/auth'
+import { authOptions, type D1 } from '../worker/auth'
+import worker, { type Env } from '../worker/index'
 import { readCachedUser, resolveAuth } from '../src/auth/state'
 
 const ORIGIN = 'http://localhost:5173'
 
 let proxy: Awaited<ReturnType<typeof getPlatformProxy<{ DB: D1 }>>>
-let env: AuthEnv
+let env: Env
 
 beforeAll(async () => {
   // D1 local en memoria, sin tocar la cuenta de Cloudflare.
@@ -41,13 +40,10 @@ async function login(email: string) {
   return { user, headers: await test.getAuthHeaders({ userId: user.id }) }
 }
 
-async function callApi(path: string, headers?: Headers, environment: AuthEnv = env) {
-  const data: Record<string, unknown> = {}
-  const next = vi.fn(async () => new Response('ok'))
-  const request = new Request(`${ORIGIN}${path}`, { method: 'POST', headers })
-  const response = await middleware({ request, env: environment, data, next })
-  return { response, data, next }
-}
+const callApi = (path: string, headers?: Headers, environment: Env = env, method = 'POST') =>
+  worker.fetch(new Request(`${ORIGIN}${path}`, { method, headers }), environment)
+
+const authRoute = ({ request }: { request: Request }) => worker.fetch(request, env)
 
 describe('base de datos', () => {
   it('las migraciones cubren lo que pide la configuración de auth', async () => {
@@ -59,39 +55,47 @@ describe('base de datos', () => {
 
 describe('protección de /api', () => {
   it('rechaza sin sesión', async () => {
-    const { response, next } = await callApi('/api/parse-plan')
-    expect(response.status).toBe(401)
-    expect(next).not.toHaveBeenCalled()
+    expect((await callApi('/api/parse-plan')).status).toBe(401)
+    expect((await callApi('/api/ruta-que-no-existe')).status).toBe(401)
   })
 
   it('rechaza una cookie falsificada', async () => {
     const headers = new Headers({ cookie: 'better-auth.session_token=inventado.firma' })
-    expect((await callApi('/api/parse-plan', headers)).response.status).toBe(401)
+    expect((await callApi('/api/parse-plan', headers)).status).toBe(401)
   })
 
-  it('deja pasar con sesión válida e identifica a la persona', async () => {
-    const { user, headers } = await login('una@example.com')
-    const { response, data } = await callApi('/api/parse-plan', headers)
-    expect(response.status).toBe(200)
-    expect(data.userId).toBe(user.id)
+  it('con sesión válida llega a la ruta', async () => {
+    const { headers } = await login('una@example.com')
+    // Sin binding de IA la ruta responde su propio error: pasó el control de sesión.
+    const response = await callApi('/api/parse-plan', headers)
+    expect(await response.json()).toEqual({ error: 'Falta el binding de Workers AI.' })
+  })
+
+  it('con sesión distingue ruta y método inexistentes', async () => {
+    const { headers } = await login('dos@example.com')
+    expect((await callApi('/api/nada', headers)).status).toBe(404)
+    expect((await callApi('/api/constructor', headers)).status).toBe(404)
+    expect((await callApi('/api/parse-plan', headers, env, 'GET')).status).toBe(405)
   })
 
   it('cada sesión es de su dueño', async () => {
-    const first = await login('dos@example.com')
-    const second = await login('tres@example.com')
-    expect((await callApi('/api/x', first.headers)).data.userId).toBe(first.user.id)
-    expect((await callApi('/api/x', second.headers)).data.userId).toBe(second.user.id)
-  })
-
-  it('no bloquea las rutas de ingreso', async () => {
-    expect((await callApi('/api/auth/get-session')).next).toHaveBeenCalled()
+    const first = await login('tres@example.com')
+    const second = await login('cuatro@example.com')
+    for (const { user, headers } of [first, second]) {
+      const response = await callApi('/api/auth/get-session', headers, env, 'GET')
+      expect(((await response.json()) as { user: { id: string } }).user.id).toBe(user.id)
+    }
   })
 
   it('falla cerrado si falta configuración', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const { response, next } = await callApi('/api/parse-plan', undefined, { DB: env.DB })
-    expect(response.status).toBe(500)
-    expect(next).not.toHaveBeenCalled()
+    expect((await callApi('/api/parse-plan', undefined, { DB: env.DB })).status).toBe(500)
+  })
+
+  it('lo que no es /api lo sirven los archivos estáticos', async () => {
+    const assets = { fetch: vi.fn(async () => new Response('index')) }
+    const response = await callApi('/semana', undefined, { ASSETS: assets }, 'GET')
+    expect(await response.text()).toBe('index')
   })
 })
 
@@ -102,7 +106,7 @@ describe('ingreso con Google', () => {
       headers: { 'content-type': 'application/json', origin: ORIGIN },
       body: JSON.stringify({ provider: 'google', callbackURL: '/' }),
     })
-    const response = await authRoute({ request, env })
+    const response = await authRoute({ request })
     expect(response.status).toBe(200)
     const { url } = (await response.json()) as { url: string }
     const target = new URL(url)
@@ -116,7 +120,7 @@ describe('ingreso con Google', () => {
       headers: { 'content-type': 'application/json', origin: ORIGIN },
       body: JSON.stringify({ provider: 'google', callbackURL: 'https://sitio-ajeno.test/' }),
     })
-    expect((await authRoute({ request, env })).status).toBe(403)
+    expect((await authRoute({ request })).status).toBe(403)
   })
 })
 

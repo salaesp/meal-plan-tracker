@@ -1,6 +1,6 @@
 /**
  * Validación de datos que no controlamos: respuestas de la IA, formulario de
- * revisión y archivos de backup. Lo usan la app y la Pages Function.
+ * revisión y archivos de backup. Lo usan la app y el Worker.
  */
 import type { Meal, Plan, Section } from './types'
 
