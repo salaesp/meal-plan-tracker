@@ -46,7 +46,7 @@ const TABS: { id: string; href: string; label: string; icon: IconName }[] = [
 
 export function App({ account }: { account: Account }) {
   const userId = account.user?.id ?? null
-  const { data, update, create, saveFailed, recovered, loading } = useAppData(userId, userId !== null && !account.offline)
+  const { data, update, replace, create, saveFailed, recovered, loading } = useAppData(userId, userId !== null && !account.offline)
   const importer = usePlanImport(userId)
   const hash = useHash()
   const today = useToday()
@@ -76,6 +76,7 @@ export function App({ account }: { account: Account }) {
       account={account}
       data={data}
       update={update}
+      replace={replace}
       importer={importer}
       hash={hash}
       today={today}
@@ -88,13 +89,14 @@ interface MainProps {
   account: Account
   data: AppData
   update: Update
+  replace: (data: AppData) => void
   importer: PlanImport
   hash: string
   today: string
   saveFailed: boolean
 }
 
-function Main({ account, data, update, importer, hash, today, saveFailed }: MainProps) {
+function Main({ account, data, update, replace, importer, hash, today, saveFailed }: MainProps) {
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [, route = '', dateParam, itemKey = ''] = hash.split('/')
   // Las rutas con fecha futura o inválida caen en hoy.
@@ -149,7 +151,14 @@ function Main({ account, data, update, importer, hash, today, saveFailed }: Main
           }}
         />
       ) : (
-        <PlanScreen account={account} data={data} update={update} today={today} importer={importer} />
+        <PlanScreen
+          account={account}
+          data={data}
+          update={update}
+          replace={replace}
+          today={today}
+          importer={importer}
+        />
       )
   } else {
     screen = (

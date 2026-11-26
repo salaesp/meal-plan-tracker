@@ -15,11 +15,13 @@ interface Props {
   account: Account
   data: AppData
   update: Update
+  /** Reemplaza todos los datos, también en la base. */
+  replace: (data: AppData) => void
   today: string
   importer: PlanImport
 }
 
-export function PlanScreen({ account, data, update, today, importer }: Props) {
+export function PlanScreen({ account, data, update, replace, today, importer }: Props) {
   const [backupMessage, setBackupMessage] = useState('')
   const [accountError, setAccountError] = useState('')
   const signOut = async () => setAccountError((await account.signOut()) ?? '')
@@ -49,7 +51,7 @@ export function PlanScreen({ account, data, update, today, importer }: Props) {
     }
     const count = Object.keys(restored.days).length
     if (!window.confirm(`Se van a reemplazar todos los datos actuales por el backup (${count} días). ¿Seguir?`)) return
-    update(() => restored)
+    replace(restored)
     setBackupMessage('Backup restaurado.')
   }
 

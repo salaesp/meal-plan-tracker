@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { mergeData } from '../domain/merge'
 import type { AppData } from '../domain/types'
-import { adoptLegacy, isUntouched, loadData, parseData, storageKeyFor } from './storage'
+import { adoptLegacy, loadData, parseData, storageKeyFor } from './storage'
+import { createSync } from './sync'
 
 export type Update = (change: (data: AppData) => AppData) => void
 
 const PUSH_DELAY_MS = 1500
+/** Con la app a la vista, cada cuánto se buscan cambios de otros dispositivos. */
+const REFRESH_MS = 30_000
 
 function persist(key: string, data: AppData): boolean {
   try {
@@ -20,8 +22,6 @@ function persist(key: string, data: AppData): boolean {
  * La base es la fuente de verdad; `localStorage` (una clave por cuenta) es
  * caché para abrir rápido y trabajar sin conexión.
  * `sync`: guarda también en el servidor y trae lo de otros dispositivos.
- * Nunca se sube nada antes de la primera descarga, para no pisar el registro
- * del servidor con el de un dispositivo nuevo.
  * `data` es `null` mientras falte la bienvenida.
  */
 export function useAppData(userId: string | null, sync: boolean) {
@@ -32,13 +32,21 @@ export function useAppData(userId: string | null, sync: boolean) {
   })
   const [data, setData] = useState(initial.data)
   const [saveFailed, setSaveFailed] = useState(false)
-  const [pulled, setPulled] = useState(false)
   /** Ya se intentó bajar del servidor (con o sin éxito). */
   const [settled, setSettled] = useState(false)
   const latest = useRef(data)
   latest.current = data
-  /** Último JSON que sabemos que tiene el servidor. */
-  const synced = useRef<string | null>(null)
+
+  const [syncer] = useState(() =>
+    createSync({
+      read: () => latest.current,
+      write: (next) => {
+        latest.current = next
+        setData(next)
+        setSaveFailed(!persist(key, next))
+      },
+    }),
+  )
 
   // Guardar dentro del mismo cambio evita pisar datos de otra pestaña al montar.
   const update = useCallback<Update>(
@@ -55,6 +63,15 @@ export function useAppData(userId: string | null, sync: boolean) {
     [key],
   )
 
+  /** Reemplaza todo, también en la base (restaurar un backup). */
+  const replace = useCallback(
+    (restored: AppData) => {
+      syncer.replaceNext()
+      update(() => restored)
+    },
+    [syncer, update],
+  )
+
   /** Primer guardado, al terminar la bienvenida. */
   const create = useCallback(
     (first: AppData) => {
@@ -65,69 +82,34 @@ export function useAppData(userId: string | null, sync: boolean) {
     [key],
   )
 
-  const push = useCallback(async (next: AppData | null, keepalive = false) => {
-    if (!next) return
-    const body = JSON.stringify(next)
-    if (body === synced.current) return
-    try {
-      const response = await fetch('/api/data', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body,
-        keepalive: keepalive && body.length < 60_000,
-      })
-      if (response.ok) synced.current = body
-    } catch {
-      // Sin conexión: se reintenta con el próximo cambio.
-    }
-  }, [])
-
-  const pull = useCallback(async () => {
-    try {
-      const response = await fetch('/api/data')
-      if (!response.ok) return
-      const body = (await response.json()) as { data?: unknown }
-      const remote = typeof body.data === 'string' ? parseData(body.data) : null
-      // Un ejemplo sin tocar en el servidor no cuenta: falta la bienvenida.
-      if (remote && !isUntouched(remote)) {
-        const local = latest.current
-        const merged = local ? mergeData(local, remote) : remote
-        if (JSON.stringify(merged) !== JSON.stringify(local)) {
-          setData(merged)
-          setSaveFailed(!persist(key, merged))
-        }
-        synced.current = JSON.stringify(remote)
-        latest.current = merged
-      }
-      setPulled(true)
-      await push(latest.current)
-    } catch {
-      // Sin conexión: sigue funcionando con lo local.
-    } finally {
-      setSettled(true)
-    }
-  }, [push, key])
-
   useEffect(() => {
     if (!sync) return
-    void pull()
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void pull()
-      else void push(latest.current, true)
+    const run = () => void syncer.run().finally(() => setSettled(true))
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') run()
+      else void syncer.flush()
     }
-    document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('online', onVisible)
+    run()
+    // En la compu, volver a la ventana no cambia la visibilidad: hace falta `focus`.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') run()
+    }, REFRESH_MS)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', run)
+    window.addEventListener('online', run)
     return () => {
-      document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('online', onVisible)
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', run)
+      window.removeEventListener('online', run)
     }
-  }, [sync, pull, push])
+  }, [sync, syncer])
 
   useEffect(() => {
-    if (!sync || !pulled) return
-    const timer = setTimeout(() => void push(data), PUSH_DELAY_MS)
+    if (!sync || !syncer.dirty()) return
+    const timer = setTimeout(() => void syncer.run(), PUSH_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [sync, pulled, data, push])
+  }, [sync, syncer, data])
 
   useEffect(() => {
     void navigator.storage?.persist?.()
@@ -142,5 +124,5 @@ export function useAppData(userId: string | null, sync: boolean) {
 
   // Sin datos locales no se ofrece la bienvenida hasta saber qué hay en la base.
   const loading = sync && data === null && !settled
-  return { data, update, create, saveFailed, recovered: initial.recovered, loading }
+  return { data, update, replace, create, saveFailed, recovered: initial.recovered, loading }
 }

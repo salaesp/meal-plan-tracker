@@ -129,6 +129,21 @@ export function parseData(raw: string): AppData | null {
   }
 }
 
+/**
+ * Representación estable para saber si dos registros dicen lo mismo. Cada
+ * dispositivo ordena claves y planes distinto; sin esto volverían a subir lo
+ * mismo en cada sincronización.
+ */
+export function fingerprint(data: AppData): string {
+  const clean = parseData(JSON.stringify(data)) ?? data
+  const plans = [...clean.plans].sort((a, b) => a.id.localeCompare(b.id))
+  return JSON.stringify({ ...clean, plans }, (_key, value: unknown) =>
+    isRecord(value) && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  )
+}
+
 export interface LoadResult {
   /** `null`: hay que mostrar la bienvenida. */
   data: AppData | null
