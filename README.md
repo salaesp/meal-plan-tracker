@@ -1,39 +1,57 @@
 # Mi plan de comidas
 
-PWA para marcar cada día si respetaste el plan nutricional. Los datos viven en el dispositivo
-(`localStorage`). La IA (Cloudflare Workers AI) se usa solo para leer un plan nuevo.
+PWA para marcar cada día si respetaste el plan nutricional. Ingreso con Google; por ahora los
+registros viven en el dispositivo (`localStorage`) y todavía no se sincronizan. La IA (Cloudflare
+Workers AI) se usa solo para leer un plan nuevo.
 
-## Comandos
+> **No abrir al público todavía.** Faltan sincronización por usuario, política de privacidad,
+> borrado de cuenta y límites de uso de IA. Mantener la pantalla de consentimiento de Google en
+> modo de prueba.
+
+## Desarrollo
 
 ```bash
 pnpm install
-pnpm dev        # app sin IA, http://localhost:5173
-pnpm check      # tipos, tests y build
-pnpm dev:ai     # app + Pages Functions (requiere `wrangler login`; consume cuota de IA)
-pnpm run deploy # check y publicación en Cloudflare Pages
+cp .dev.vars.example .dev.vars   # completar
+pnpm dev:api                     # Pages Functions + D1 local en :8788
+pnpm dev                         # front en :5173 (redirige /api a :8788)
+pnpm check                       # tipos, tests y build
 ```
+
+- `pnpm dev:api` arma el build y aplica las migraciones locales. Usa Workers AI remoto: requiere
+  `wrangler login` y consume cuota al analizar un plan.
+- Sin credenciales de Google, `pnpm dev` ofrece "Entrar sin cuenta (solo desarrollo)". Ese acceso
+  no existe en el build de producción y no da acceso a la API.
+
+## Google OAuth
+
+1. Google Cloud → APIs y servicios → Pantalla de consentimiento (externa, en modo de prueba, con tu
+   email como usuario de prueba).
+2. Credenciales → Crear ID de cliente OAuth → Aplicación web.
+3. URI de redirección autorizadas: `http://localhost:5173/api/auth/callback/google` y
+   `https://meal-plan-tracker.pages.dev/api/auth/callback/google`.
+4. Copiar el ID y el secreto en `.dev.vars` (local) y como secretos en Cloudflare (producción).
 
 ## Primer deploy
 
-1. `pnpm exec wrangler login`
-2. `pnpm exec wrangler pages project create meal-plan --production-branch main`
-3. Proteger con Cloudflare Access **antes** de publicar la URL (ver abajo).
-4. `pnpm run deploy` (con `run`: `pnpm deploy` es otro comando)
+```bash
+pnpm exec wrangler login
+pnpm exec wrangler d1 create meal-plan-tracker
+```
+
+1. Pegar el `database_id` que devuelve en `wrangler.jsonc`.
+2. `pnpm exec wrangler pages project create meal-plan-tracker --production-branch main`
+3. Cargar los secretos, uno por comando:
+   `pnpm exec wrangler pages secret put BETTER_AUTH_SECRET` (aleatorio: `openssl rand -base64 32`),
+   `BETTER_AUTH_URL` (`https://meal-plan-tracker.pages.dev`; si Cloudflare asigna otro subdominio, usar ese), `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
+4. `pnpm run deploy` (con `run`: `pnpm deploy` es otro comando). Aplica migraciones y publica.
 5. Abrir la URL en Chrome de Android → menú → **Instalar app**.
 
-El binding `AI` sale de `wrangler.jsonc`; no hace falta configurarlo en el dashboard.
+## Seguridad
 
-## Cloudflare Access
-
-Sin Access, cualquiera con la URL ve el plan y gasta la cuota de IA. Activar la política desde
-Pages protege solo las previews; para cubrir también `*.pages.dev`
-([guía oficial](https://developers.cloudflare.com/pages/platform/known-issues/#enable-access-on-your-pagesdev-domain)):
-
-1. Workers & Pages → proyecto → Settings → **Enable access policy**.
-2. **Manage** en la política creada → Access → Applications → proyecto → **Configure**.
-3. En **Public hostname**, borrar el `*` del subdominio y guardar.
-4. Volver al proyecto y activar otra vez **Enable access policy** para las previews.
-5. Dejar permitido solo tu email.
+- Todo `/api/*` exige sesión salvo `/api/auth/*` (`functions/api/_middleware.ts`).
+- Los intentos de ingreso tienen límite guardado en D1.
+- Secretos solo en `.dev.vars` y en Cloudflare, nunca en el repositorio.
 
 ## Carga de planes
 
@@ -48,5 +66,7 @@ gratis por día. No está medido.
 
 - `src/domain/` — plan, registro diario, semana y validación (sin UI).
 - `src/data/seedPlan.ts` — plan de ejemplo genérico.
+- `src/auth/` — ingreso y estado de sesión.
+- `functions/`, `migrations/` — autenticación, API y base D1.
 - `src/screens/` — Hoy, detalle, Semana, Plan y revisión.
 - `functions/api/parse-plan.ts` — extracción con Workers AI.

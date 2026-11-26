@@ -244,6 +244,46 @@ textarea {
   color: var(--text);
 }
 
+/* ---------- Ingreso ---------- */
+
+.splash {
+  padding: 40dvh 1rem 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.login {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100dvh;
+  padding-bottom: 2rem;
+  text-align: center;
+}
+
+.login-badges {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.login-badge {
+  width: 3.5rem;
+  height: 3.5rem;
+  background: var(--tint);
+}
+
+.login p {
+  margin: 0.75rem 0 1.5rem;
+  color: var(--muted);
+}
+
+.login .notice {
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
 /* ---------- Encabezados ---------- */
 
 .date-nav {

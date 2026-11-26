@@ -4,12 +4,13 @@ import { registerSW } from 'virtual:pwa-register'
 import '@fontsource-variable/figtree'
 import '@fontsource-variable/fraunces/soft.css'
 import { App } from './App'
+import { AuthGate } from './auth/AuthGate'
 import './styles.css'
 
 registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AuthGate>{(account) => <App account={account} />}</AuthGate>
   </StrictMode>,
 )

@@ -1,0 +1,8 @@
+# Copiar a .dev.vars (no se sube al repo) y completar.
+# Secreto aleatorio: openssl rand -base64 32
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:5173
+# Google Cloud → Credenciales → ID de cliente OAuth (aplicación web).
+# URI de redirección autorizada: http://localhost:5173/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

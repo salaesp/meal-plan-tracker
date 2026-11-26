@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Account } from './auth/AuthGate'
 import { Toast, type Notify, type ToastMessage } from './components/common'
 import { Icon, type IconName } from './components/icons'
 import { isISODate, toISODate } from './domain/dates'
@@ -41,7 +42,7 @@ const TABS: { id: string; href: string; label: string; icon: IconName }[] = [
   { id: 'plan', href: '#/plan', label: 'Plan', icon: 'plan' },
 ]
 
-export function App() {
+export function App({ account }: { account: Account }) {
   const { data, update, saveFailed, recovered } = useAppData()
   const [draft, setDraft] = useState<Draft | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
@@ -92,7 +93,14 @@ export function App() {
           }}
         />
       ) : (
-        <PlanScreen data={data} update={update} today={today} hasDraft={draft !== null} onDraft={openDraft} />
+        <PlanScreen
+          account={account}
+          data={data}
+          update={update}
+          today={today}
+          hasDraft={draft !== null}
+          onDraft={openDraft}
+        />
       )
   } else {
     screen = (

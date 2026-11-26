@@ -15,11 +15,11 @@ export async function importPlan(input: File | string): Promise<Draft> {
 
   let response: Response
   try {
-    response = await fetch('/api/parse-plan', { method: 'POST', body: form, redirect: 'manual' })
+    response = await fetch('/api/parse-plan', { method: 'POST', body: form })
   } catch {
     throw new Error('Sin conexión. La carga con IA necesita internet.')
   }
-  if (response.type === 'opaqueredirect' || response.status === 401) throw new SessionExpiredError()
+  if (response.status === 401) throw new SessionExpiredError()
 
   const body: unknown = await response.json().catch(() => null)
   if (!isRecord(body)) throw new Error('El servicio de IA no está disponible en este entorno.')

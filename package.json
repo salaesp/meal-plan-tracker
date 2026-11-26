@@ -1,20 +1,23 @@
 {
-  "name": "meal-plan",
+  "name": "meal-plan-tracker",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:ai": "vite build && wrangler pages dev",
+    "dev:api": "pnpm db:local && vite build && wrangler pages dev --port 8788",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "db:remote": "wrangler d1 migrations apply DB --remote",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "build": "vite build",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "deploy": "pnpm check && wrangler pages deploy"
+    "deploy": "pnpm check && pnpm db:remote && wrangler pages deploy"
   },
   "dependencies": {
     "@fontsource-variable/figtree": "^5.3.0",
     "@fontsource-variable/fraunces": "^5.3.0",
+    "better-auth": "^1.7.28",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

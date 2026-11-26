@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Account } from '../auth/AuthGate'
 import { MealBadge, SectionList } from '../components/common'
 import { Icon } from '../components/icons'
 import { formatDay } from '../domain/dates'
@@ -10,6 +11,7 @@ import { parseData } from '../store/storage'
 import type { Update } from '../store/useAppData'
 
 interface Props {
+  account: Account
   data: AppData
   update: Update
   today: string
@@ -17,13 +19,15 @@ interface Props {
   onDraft: (draft: Draft) => void
 }
 
-export function PlanScreen({ data, update, today, hasDraft, onDraft }: Props) {
+export function PlanScreen({ account, data, update, today, hasDraft, onDraft }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [pasted, setPasted] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [expired, setExpired] = useState(false)
   const [backupMessage, setBackupMessage] = useState('')
+  const [accountError, setAccountError] = useState('')
+  const signOut = async () => setAccountError((await account.signOut()) ?? '')
   const activeId = activePlanId(data)
   const active = data.plans.find((plan) => plan.id === activeId)!
   const input = file ?? pasted.trim()
@@ -145,7 +149,10 @@ export function PlanScreen({ data, update, today, hasDraft, onDraft }: Props) {
         )}
         {expired && (
           <p className="notice error" role="alert">
-            Venció tu sesión. <a href="/api/login">Volvé a ingresar</a> y reintentá.
+            Venció tu sesión.{' '}
+            <button type="button" className="link" onClick={signOut}>
+              Volver a ingresar
+            </button>
           </p>
         )}
       </section>
@@ -169,6 +176,24 @@ export function PlanScreen({ data, update, today, hasDraft, onDraft }: Props) {
                 </li>
               ))}
           </ul>
+        </section>
+      )}
+
+      {account.user && (
+        <section className="card">
+          <h2>Cuenta</h2>
+          <p className="hint">
+            {account.user.name} · {account.user.email}
+            {account.offline && ' · sin conexión'}
+          </p>
+          <button type="button" className="button secondary block" onClick={signOut}>
+            Cerrar sesión
+          </button>
+          {accountError && (
+            <p className="notice error" role="alert">
+              {accountError}
+            </p>
+          )}
         </section>
       )}
 

@@ -3,12 +3,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  server: {
+    // `pnpm dev:api` levanta las Pages Functions en 8788. Se conserva el Host
+    // para que el ingreso funcione en el origen del front.
+    proxy: { '/api': { target: 'http://127.0.0.1:8788', changeOrigin: false } },
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Con Cloudflare Access el manifest se pide con cookies; sin esto no instala.
-      useCredentials: true,
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Mi plan de comidas',
@@ -27,8 +30,8 @@ export default defineConfig({
       workbox: {
         // Incluye las fuentes para que funcionen offline.
         globPatterns: ['**/*.{js,css,html,woff2,svg,png}'],
-        // /api/* siempre va a la red (Functions y login de Access).
-        navigateFallbackDenylist: [/^\/api\//, /^\/cdn-cgi\//],
+        // /api/* siempre va a la red (Functions e ingreso con Google).
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],

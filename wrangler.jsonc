@@ -1,7 +1,17 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "meal-plan",
+  "name": "meal-plan-tracker",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-11-20",
-  "ai": { "binding": "AI" }
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "meal-plan-tracker",
+      // Reemplazar por el id que devuelve `wrangler d1 create meal-plan-tracker`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
