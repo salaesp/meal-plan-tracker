@@ -6,6 +6,7 @@
  * `routes` y quedan protegidas por defecto.
  */
 import { ConfigError, createAuth, jsonError, type AuthEnv } from './auth'
+import { handleGetData, handlePutData } from './data'
 import { handleParsePlan, type Ai } from './parse-plan'
 
 export interface Env extends AuthEnv {
@@ -17,6 +18,10 @@ type Route = (request: Request, env: Env, userId: string) => Promise<Response>
 
 const routes: Record<string, Partial<Record<string, Route>>> = {
   '/api/parse-plan': { POST: (request, env) => handleParsePlan(request, env.AI) },
+  '/api/data': {
+    GET: (_request, env, userId) => handleGetData(env.DB, userId),
+    PUT: (request, env, userId) => handlePutData(request, env.DB, userId),
+  },
 }
 
 async function handleApi(request: Request, env: Env, path: string): Promise<Response> {

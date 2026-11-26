@@ -7,6 +7,7 @@ import { getPlatformProxy } from 'wrangler'
 import { authOptions, type D1 } from '../worker/auth'
 import worker, { type Env } from '../worker/index'
 import { readCachedUser, resolveAuth } from '../src/auth/state'
+import { initialData, parseData } from '../src/store/storage'
 
 const ORIGIN = 'http://localhost:5173'
 
@@ -96,6 +97,33 @@ describe('protección de /api', () => {
     const assets = { fetch: vi.fn(async () => new Response('index')) }
     const response = await callApi('/semana', undefined, { ASSETS: assets }, 'GET')
     expect(await response.text()).toBe('index')
+  })
+})
+
+describe('registro en la base', () => {
+  const put = (headers: Headers, body: string) =>
+    worker.fetch(
+      new Request(`${ORIGIN}/api/data`, { method: 'PUT', headers: new Headers([...headers, ['content-type', 'application/json']]), body }),
+      env,
+    )
+
+  it('guarda y devuelve el registro de cada persona, sin mezclarlos', async () => {
+    const first = await login('datos1@example.com')
+    const second = await login('datos2@example.com')
+    expect(((await (await callApi('/api/data', first.headers, env, 'GET')).json()) as { data: unknown }).data).toBeNull()
+
+    const saved = JSON.stringify({ ...initialData(), updatedAt: 5 })
+    expect((await put(first.headers, saved)).status).toBe(200)
+    const read = (await (await callApi('/api/data', first.headers, env, 'GET')).json()) as { data: string }
+    expect(parseData(read.data)?.updatedAt).toBe(5)
+    const other = (await (await callApi('/api/data', second.headers, env, 'GET')).json()) as { data: unknown }
+    expect(other.data).toBeNull()
+  })
+
+  it('rechaza datos inválidos y pedidos sin sesión', async () => {
+    const { headers } = await login('datos3@example.com')
+    expect((await put(headers, '{"roto"')).status).toBe(400)
+    expect((await callApi('/api/data', undefined, env, 'GET')).status).toBe(401)
   })
 })
 

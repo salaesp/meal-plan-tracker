@@ -41,7 +41,15 @@ function parseDay(date: string, value: unknown): DayLog | null {
       : [],
   )
   const waterMl = typeof value.waterMl === 'number' && value.waterMl > 0 ? value.waterMl : 0
-  return { date, planId: value.planId, items, waterMl, extras, trained: value.trained === true ? true : undefined }
+  return {
+    date,
+    planId: value.planId,
+    items,
+    waterMl,
+    extras,
+    trained: value.trained === true ? true : undefined,
+    updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
+  }
 }
 
 /** `null` si el contenido no es un guardado válido. */
@@ -75,7 +83,7 @@ export function parseData(raw: string): AppData | null {
     const day = parseDay(date, entry)
     if (day) days[date] = day
   }
-  return { version: 1, plans, activations, days }
+  return { version: 1, plans, activations, days, updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined }
 }
 
 export interface LoadResult {

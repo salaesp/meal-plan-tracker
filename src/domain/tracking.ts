@@ -60,7 +60,7 @@ export function dayLog(data: AppData, date: string): DayLog {
 }
 
 function updateDay(data: AppData, date: string, change: (log: DayLog) => DayLog): AppData {
-  return { ...data, days: { ...data.days, [date]: change(dayLog(data, date)) } }
+  return { ...data, days: { ...data.days, [date]: { ...change(dayLog(data, date)), updatedAt: Date.now() } } }
 }
 
 export function setItem(data: AppData, date: string, key: string, patch: ItemLog): AppData {
@@ -146,12 +146,9 @@ export function copyDay(data: AppData, from: string, to: string): AppData {
   }))
 }
 
-/** Devuelve el día a como estaba (`undefined`: sin registro). Sirve para deshacer. */
+/** Devuelve el día a como estaba (`undefined`: día vacío). Sirve para deshacer. */
 export function restoreDay(data: AppData, date: string, log: DayLog | undefined): AppData {
-  const days = { ...data.days }
-  if (log) days[date] = log
-  else delete days[date]
-  return { ...data, days }
+  return updateDay(data, date, () => log ?? dayLog({ ...data, days: {} }, date))
 }
 
 export function addExtra(data: AppData, date: string, id: string, text: string, time?: string): AppData {
@@ -169,7 +166,7 @@ export function activatePlan(data: AppData, plan: Plan, today: string): AppData 
   const plans = data.plans.some((entry) => entry.id === plan.id) ? data.plans : [...data.plans, plan]
   const activations = [...data.activations.filter((entry) => entry.date < today), { date: today, planId: plan.id }]
   const days = Object.fromEntries(
-    Object.entries(data.days).map(([date, log]) => [date, date >= today ? { ...log, planId: plan.id } : log]),
+    Object.entries(data.days).map(([date, log]) => [date, date >= today ? { ...log, planId: plan.id, updatedAt: Date.now() } : log]),
   )
   return { ...data, plans, activations, days }
 }

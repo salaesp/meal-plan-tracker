@@ -54,6 +54,8 @@ export interface DayLog {
   items: Record<string, ItemLog>
   waterMl: number
   extras: Extra[]
+  /** Última modificación (ms), para fusionar entre dispositivos. */
+  updatedAt?: number
   /** Entrené ese día. */
   trained?: boolean
 }
@@ -70,4 +72,6 @@ export interface AppData {
   /** Ordenadas por fecha ascendente. */
   activations: Activation[]
   days: Record<string, DayLog>
+  /** Última modificación (ms). */
+  updatedAt?: number
 }

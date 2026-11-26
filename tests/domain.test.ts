@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { seedPlan } from '../src/data/seedPlan'
 import { addDays, isISODate, weekDates } from '../src/domain/dates'
 import { finalizeDraft } from '../src/domain/draft'
+import { mergeData } from '../src/domain/merge'
 import { parsePlan, parseWater, planFromExtraction, sectionHint } from '../src/domain/parsing'
 import {
   activatePlan,
@@ -82,6 +83,27 @@ describe('plan inicial', () => {
   })
 })
 
+describe('fusión entre dispositivos', () => {
+  const date = '2026-11-26'
+  it('un dispositivo nuevo recibe el plan y los días del servidor', () => {
+    let server = activatePlan(initialData(), newPlan, '2026-11-20')
+    server = toggleStatus(server, date, 'desayuno', 'done')
+    server = { ...server, updatedAt: 100 }
+    const merged = mergeData(initialData(), server)
+    expect(merged.activations.at(-1)?.planId).toBe('plan-nuevo')
+    expect(merged.plans.map((plan) => plan.id)).toContain('plan-nuevo')
+    expect(merged.days[date]?.items.desayuno?.status).toBe('done')
+  })
+
+  it('cada día se queda con la versión más nueva', () => {
+    const base = initialData()
+    const a = { ...base, days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status: 'done' as const } }, waterMl: 0, extras: [], updatedAt: 1 } } }
+    const b = { ...base, days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status: 'failed' as const } }, waterMl: 0, extras: [], updatedAt: 2 } } }
+    expect(mergeData(a, b).days[date]?.items.cena?.status).toBe('failed')
+    expect(mergeData(b, a).days[date]?.items.cena?.status).toBe('failed')
+  })
+})
+
 describe('cantidades', () => {
   it('conserva la cantidad de cada sección', () => {
     const plan = parsePlan({
@@ -112,7 +134,7 @@ describe('registro diario', () => {
     expect(copied.days[date]?.items.desayuno?.status).toBe('done')
     expect(copied.days[date]?.items.cena).toBeUndefined()
     expect(copied.days[date]?.extras.map((extra) => extra.text)).toEqual(['alfajor'])
-    expect(restoreDay(copied, date, before).days[date]).toEqual(before)
+    expect(restoreDay(copied, date, before).days[date]).toMatchObject({ ...before, updatedAt: expect.any(Number) })
     expect(copyableDays(copied, date)).toEqual([from])
   })
 

@@ -43,7 +43,7 @@ const TABS: { id: string; href: string; label: string; icon: IconName }[] = [
 ]
 
 export function App({ account }: { account: Account }) {
-  const { data, update, saveFailed, recovered } = useAppData()
+  const { data, update, saveFailed, recovered } = useAppData(account.user !== null && !account.offline)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const hash = useHash()
