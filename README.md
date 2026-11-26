@@ -54,6 +54,11 @@ La app queda en `https://meal-plan-tracker.salaesp.workers.dev`.
 - Los intentos de ingreso tienen límite guardado en D1.
 - Secretos solo en `.dev.vars` y en Cloudflare, nunca en el repositorio.
 
+## Primer uso
+
+Sin datos guardados (o solo con el ejemplo sin tocar) se muestra la bienvenida: cargar el plan (IA,
+a mano, ejemplo o backup) y elegir horarios. Los horarios se editan después en Plan.
+
 ## Carga de planes
 
 PDF con texto (máx. 5 MB) o texto pegado (máx. 30.000 caracteres). El borrador se revisa antes de

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toISODate } from '../domain/dates'
 import { finalizeDraft } from '../domain/draft'
 import { parseWater } from '../domain/parsing'
 import type { Meal, Plan, Section } from '../domain/types'
@@ -59,9 +60,11 @@ interface Props {
   onChange: (draft: Draft) => void
   onActivate: (plan: Plan) => void
   onDiscard: () => void
+  activateLabel?: string
+  intro?: string
 }
 
-export function ReviewScreen({ draft, onChange, onActivate, onDiscard }: Props) {
+export function ReviewScreen({ draft, onChange, onActivate, onDiscard, activateLabel, intro }: Props) {
   const { plan, sourceText } = draft
   const [water, setWater] = useState(() => String(plan.waterLiters || '').replace('.', ','))
   const [error, setError] = useState('')
@@ -70,7 +73,7 @@ export function ReviewScreen({ draft, onChange, onActivate, onDiscard }: Props) 
     setPlan({ meals: plan.meals.map((meal, i) => (i === index ? { ...meal, ...change } : meal)) })
 
   const activate = () => {
-    const finished = finalizeDraft(plan, `plan-${Date.now()}`, new Date().toISOString().slice(0, 10))
+    const finished = finalizeDraft(plan, `plan-${Date.now()}`, toISODate(new Date()))
     if (finished) onActivate(finished)
     else setError('El plan necesita al menos una comida con nombre.')
   }
@@ -81,9 +84,10 @@ export function ReviewScreen({ draft, onChange, onActivate, onDiscard }: Props) 
         <h1>Revisar plan</h1>
       </header>
       <p className="notice">
-        {sourceText
-          ? 'La IA puede omitir opciones o cambiar cantidades. Compará con el original antes de activar.'
-          : 'Al activar se guarda como plan nuevo desde hoy; los días anteriores no cambian.'}
+        {intro ??
+          (sourceText
+            ? 'La IA puede omitir opciones o cambiar cantidades. Compará con el original antes de activar.'
+            : 'Al activar se guarda como plan nuevo desde hoy; los días anteriores no cambian.')}
       </p>
 
       {sourceText && (
@@ -171,7 +175,7 @@ export function ReviewScreen({ draft, onChange, onActivate, onDiscard }: Props) 
         </p>
       )}
       <button type="button" className="button block" onClick={activate}>
-        Activar desde hoy
+        {activateLabel ?? 'Activar desde hoy'}
       </button>
       <button type="button" className="button secondary block" onClick={onDiscard}>
         Descartar

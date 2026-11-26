@@ -1,19 +1,39 @@
 import { seedPlan } from '../data/seedPlan'
 import { isISODate } from '../domain/dates'
 import { isRecord, parsePlan } from '../domain/parsing'
+import { parseTime } from '../domain/schedule'
 import { STATUSES } from '../domain/tracking'
-import type { Activation, AppData, DayLog, ItemLog, Plan, Status } from '../domain/types'
+import type { Activation, AppData, DayLog, ItemLog, Plan, Settings, Status } from '../domain/types'
 
 export const STORAGE_KEY = 'meal-plan:data'
 export const CORRUPT_KEY = 'meal-plan:corrupt'
 
-export function initialData(): AppData {
+/** Datos de arranque con el plan elegido, vigente desde `date`. */
+export function initialData(plan: Plan = seedPlan, date: string = seedPlan.createdAt, settings?: Settings): AppData {
   return {
     version: 1,
-    plans: [seedPlan],
-    activations: [{ date: seedPlan.createdAt, planId: seedPlan.id }],
+    plans: [plan],
+    activations: [{ date, planId: plan.id }],
     days: {},
+    ...(settings ? { settings } : {}),
   }
+}
+
+/** Solo el plan de ejemplo, sin registros y sin haber pasado por la bienvenida. */
+const isUntouched = (data: AppData) =>
+  !data.settings?.onboardedAt &&
+  data.plans.length === 1 &&
+  data.plans[0]!.id === seedPlan.id &&
+  Object.keys(data.days).length === 0
+
+function parseSettings(value: unknown): Settings | undefined {
+  if (!isRecord(value)) return undefined
+  const mealTimes = Object.fromEntries(
+    Object.entries(isRecord(value.mealTimes) ? value.mealTimes : {}).filter(
+      (pair): pair is [string, string] => typeof pair[1] === 'string' && parseTime(pair[1]) !== null,
+    ),
+  )
+  return { mealTimes, ...(isISODate(value.onboardedAt) ? { onboardedAt: value.onboardedAt } : {}) }
 }
 
 const isStatus = (value: unknown): value is Status => STATUSES.some((entry) => entry.value === value)
@@ -75,20 +95,22 @@ export function parseData(raw: string): AppData | null {
     const day = parseDay(date, entry)
     if (day) days[date] = day
   }
-  return { version: 1, plans, activations, days }
+  const settings = parseSettings(value.settings)
+  return { version: 1, plans, activations, days, ...(settings ? { settings } : {}) }
 }
 
 export interface LoadResult {
-  data: AppData
+  /** `null`: hay que mostrar la bienvenida. */
+  data: AppData | null
   /** Había datos ilegibles; quedaron copiados en `CORRUPT_KEY`. */
   recovered: boolean
 }
 
 export function loadData(storage: Pick<Storage, 'getItem' | 'setItem'>): LoadResult {
   const raw = storage.getItem(STORAGE_KEY)
-  if (raw === null) return { data: initialData(), recovered: false }
+  if (raw === null) return { data: null, recovered: false }
   const data = parseData(raw)
-  if (data) return { data, recovered: false }
+  if (data) return { data: isUntouched(data) ? null : data, recovered: false }
   storage.setItem(CORRUPT_KEY, raw)
-  return { data: initialData(), recovered: true }
+  return { data: null, recovered: true }
 }

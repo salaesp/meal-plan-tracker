@@ -13,13 +13,16 @@ import {
   planForDate,
   setCombined,
   setItem,
+  setMealTime,
   toggleContext,
   toggleStatus,
   weekInsight,
   weekRows,
   weekSummary,
 } from '../src/domain/tracking'
-import { focusMeal, nextMeal, orderedMains, pendingMeals } from '../src/domain/schedule'
+import { blankPlan } from '../src/data/blankPlan'
+import { focusMeal, formatTime, nextMeal, orderedMains, parseTime, pendingMeals } from '../src/domain/schedule'
+import { loadDraft, saveDraft } from '../src/store/draft'
 import type { Plan } from '../src/domain/types'
 import { CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY } from '../src/store/storage'
 
@@ -251,6 +254,14 @@ describe('horarios', () => {
     expect(focusMeal(seedPlan, log(data), 12)?.id).toBe('colacion-1')
   })
 
+  it('respeta los horarios propios', () => {
+    const times = { desayuno: '11:00', almuerzo: '15:30', cena: '23:00' }
+    expect(focusMeal(seedPlan, log(), 11, times)?.id).toBe('desayuno')
+    expect(pendingMeals(seedPlan, log(), 15, times).map((meal) => meal.id)).toEqual(['desayuno'])
+    expect(orderedMains(seedPlan, { merienda: '12:00' }).map((entry) => entry.meal.id)[1]).toBe('merienda')
+    expect([formatTime(13.5), parseTime('24:00')]).toEqual(['13:30', null])
+  })
+
   it('avisa las comidas pasadas sin registrar y sugiere la próxima', () => {
     const data = toggleStatus(empty, date, 'desayuno', 'done')
     expect(pendingMeals(seedPlan, log(data), 18).map((meal) => meal.id)).toEqual(['almuerzo'])
@@ -268,13 +279,46 @@ describe('guardado', () => {
     expect(parseData(JSON.stringify(data))).toEqual(data)
   })
 
-  it('arranca con el plan inicial si no hay nada', () => {
-    expect(loadData(memoryStorage())).toEqual({ data: initialData(), recovered: false })
+  it('pide la bienvenida si no hay nada', () => {
+    expect(loadData(memoryStorage())).toEqual({ data: null, recovered: false })
+  })
+
+  it('pide la bienvenida a quien solo tiene el ejemplo sin tocar', () => {
+    const untouched = memoryStorage({ [STORAGE_KEY]: JSON.stringify(initialData()) })
+    expect(loadData(untouched).data).toBeNull()
+  })
+
+  it('no la repite si hay registros, otro plan o ya se completó', () => {
+    const kept = [
+      toggleStatus(initialData(), '2026-11-26', 'desayuno', 'done'),
+      initialData(newPlan, '2026-11-26'),
+      initialData(undefined, '2026-11-26', { mealTimes: {}, onboardedAt: '2026-11-26' }),
+    ]
+    for (const data of kept) {
+      expect(loadData(memoryStorage({ [STORAGE_KEY]: JSON.stringify(data) })).data).not.toBeNull()
+    }
+  })
+
+  it('guarda los horarios y descarta los inválidos', () => {
+    const data = setMealTime(setMealTime(initialData(), 'cena', '22:30'), 'desayuno', '99:00')
+    expect(parseData(JSON.stringify(data))?.settings).toEqual({ mealTimes: { cena: '22:30' } })
+  })
+
+  it('el borrador sobrevive a recargar y se puede descartar', () => {
+    const storage = { ...memoryStorage(), removeItem: (key: string) => void storage.values.delete(key) }
+    saveDraft(storage, { plan: newPlan, sourceText: 'texto' })
+    expect(loadDraft(storage)).toEqual({ plan: newPlan, sourceText: 'texto' })
+    saveDraft(storage, null)
+    expect(loadDraft(storage)).toBeNull()
+  })
+
+  it('el esqueleto manual es un plan válido', () => {
+    expect(parsePlan(blankPlan('x'))?.meals).toHaveLength(4)
   })
 
   it('guarda una copia de los datos ilegibles', () => {
     const storage = memoryStorage({ [STORAGE_KEY]: '{roto' })
-    expect(loadData(storage).recovered).toBe(true)
+    expect(loadData(storage)).toEqual({ data: null, recovered: true })
     expect(storage.values.get(CORRUPT_KEY)).toBe('{roto')
   })
 })

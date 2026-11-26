@@ -59,7 +59,15 @@ export interface Activation {
   planId: string
 }
 
+export interface Settings {
+  /** Hora habitual por comida (id → "HH:MM"). Sin valor se usa la sugerida. */
+  mealTimes: Record<string, string>
+  /** Fecha en que se completó la bienvenida. */
+  onboardedAt?: string
+}
+
 export interface AppData {
+  settings?: Settings
   version: 1
   plans: Plan[]
   /** Ordenadas por fecha ascendente. */

@@ -1,3 +1,4 @@
+import { toISODate } from '../domain/dates'
 import { isRecord, parsePlan } from '../domain/parsing'
 import type { Plan } from '../domain/types'
 import { readPdfFile } from './pdfText'
@@ -10,13 +11,20 @@ export interface Draft {
 
 export class SessionExpiredError extends Error {}
 
-export async function importPlan(input: File | string): Promise<Draft> {
+/** Fecha y nombre según el día local (el servidor trabaja en UTC). */
+export function datedPlan(plan: Plan, date = new Date()): Plan {
+  const iso = toISODate(date)
+  const [year, month, day] = iso.split('-')
+  return { ...plan, createdAt: iso, name: `Plan ${day}/${month}/${year!.slice(2)}` }
+}
+
+export async function importPlan(input: File | string, signal?: AbortSignal): Promise<Draft> {
   const form = new FormData()
   form.set('text', typeof input === 'string' ? input : await readPdfFile(input))
 
   let response: Response
   try {
-    response = await fetch('/api/parse-plan', { method: 'POST', body: form })
+    response = await fetch('/api/parse-plan', { method: 'POST', body: form, signal })
   } catch {
     throw new Error('Sin conexión. La carga con IA necesita internet.')
   }
@@ -28,5 +36,5 @@ export async function importPlan(input: File | string): Promise<Draft> {
 
   const plan = parsePlan(body.plan)
   if (!plan) throw new Error('La respuesta no tiene un plan válido.')
-  return { plan, sourceText: typeof body.sourceText === 'string' ? body.sourceText : '' }
+  return { plan: datedPlan(plan), sourceText: typeof body.sourceText === 'string' ? body.sourceText : '' }
 }

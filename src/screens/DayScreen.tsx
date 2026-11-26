@@ -44,10 +44,11 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
   const plan = planForDate(data, date)
   const log = dayLog(data, date)
   const score = dayScore(data, date)
+  const times = data.settings?.mealTimes
   const [hour] = useState(currentHour)
-  const [focusId, setFocusId] = useState(() => (isToday ? (focusMeal(plan, log, hour)?.id ?? null) : null))
+  const [focusId, setFocusId] = useState(() => (isToday ? (focusMeal(plan, log, hour, times)?.id ?? null) : null))
   const focus = plan.meals.find((meal) => meal.id === focusId) ?? null
-  const pending = isToday ? pendingMeals(plan, log, hour).filter((meal) => meal.id !== focusId) : []
+  const pending = isToday ? pendingMeals(plan, log, hour, times).filter((meal) => meal.id !== focusId) : []
   const yesterday = addDays(date, -1)
   const yesterdayScore = isToday && data.days[yesterday] ? dayScore(data, yesterday) : null
   const yesterdayMissing = yesterdayScore ? yesterdayScore.total - yesterdayScore.marked : 0
@@ -78,7 +79,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
         action: { label: 'Deshacer', run: () => update((current) => applyStatus(current, date, key, before)) },
       })
     } else if (key === mealId && after === 'failed') {
-      const next = nextMeal(plan, log, mealId)
+      const next = nextMeal(plan, log, mealId, times)
       notify({
         text: next ? 'Retomá en la próxima comida.' : 'Mañana retomás el plan.',
         action: next ? { label: `Ver ${next.name.toLowerCase()}`, run: () => open(next.id) } : undefined,
@@ -137,7 +138,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           log={log}
           onMark={mark}
           onOpen={() => open(focus.id)}
-          onNext={() => setFocusId(focusMeal(plan, dayLog(data, date), currentHour())?.id ?? null)}
+          onNext={() => setFocusId(focusMeal(plan, dayLog(data, date), currentHour(), times)?.id ?? null)}
         />
       ) : (
         isToday &&
@@ -146,7 +147,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
 
       <h2 className="group-title">{isToday ? 'Tu día' : 'Comidas'}</h2>
       <ul className="day-list">
-        {orderedMains(plan).map(({ meal }, index, mains) => {
+        {orderedMains(plan, times).map(({ meal }, index, mains) => {
           const focusIndex = mains.findIndex((entry) => entry.meal.id === focusId)
           const position = focusIndex < 0 || index < focusIndex ? '' : index === focusIndex ? 'current' : 'upcoming'
           return (

@@ -9,19 +9,23 @@ export function useAppData() {
   const [data, setData] = useState(initial.data)
   const [saveFailed, setSaveFailed] = useState(false)
 
-  // Guardar dentro del mismo cambio evita pisar datos de otra pestaña al montar.
-  const update = useCallback<Update>((change) => {
-    setData((current) => {
-      const next = change(current)
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-        setSaveFailed(false)
-      } catch {
-        setSaveFailed(true)
-      }
-      return next
-    })
+  const save = useCallback((next: AppData) => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      setSaveFailed(false)
+    } catch {
+      setSaveFailed(true)
+    }
+    return next
   }, [])
+
+  // Guardar dentro del mismo cambio evita pisar datos de otra pestaña al montar.
+  const update = useCallback<Update>(
+    (change) => setData((current) => (current ? save(change(current)) : current)),
+    [save],
+  )
+  /** Primer guardado, al terminar la bienvenida. */
+  const create = useCallback((next: AppData) => setData(save(next)), [save])
 
   useEffect(() => {
     void navigator.storage?.persist?.()
@@ -34,5 +38,5 @@ export function useAppData() {
     return () => window.removeEventListener('storage', sync)
   }, [])
 
-  return { data, update, saveFailed, recovered: initial.recovered }
+  return { data, update, create, saveFailed, recovered: initial.recovered }
 }

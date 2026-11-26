@@ -117,6 +117,11 @@ export function removeExtra(data: AppData, date: string, id: string): AppData {
   return updateDay(data, date, (log) => ({ ...log, extras: log.extras.filter((extra) => extra.id !== id) }))
 }
 
+export function setMealTime(data: AppData, mealId: string, time: string): AppData {
+  const mealTimes = { ...data.settings?.mealTimes, [mealId]: time }
+  return { ...data, settings: { ...data.settings, mealTimes } }
+}
+
 /** Activa un plan desde `today`. Los días anteriores conservan el plan que regía. */
 export function activatePlan(data: AppData, plan: Plan, today: string): AppData {
   const plans = data.plans.some((entry) => entry.id === plan.id) ? data.plans : [...data.plans, plan]

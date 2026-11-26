@@ -1,49 +1,35 @@
 import { useState } from 'react'
 import type { Account } from '../auth/AuthGate'
 import { MealBadge, SectionList } from '../components/common'
-import { Icon } from '../components/icons'
+import { ImportForm } from '../components/ImportForm'
+import { MealTimesFields } from '../components/MealTimesFields'
 import { formatDay } from '../domain/dates'
 import { mealTheme } from '../domain/mealTheme'
-import { activatePlan, activePlanId } from '../domain/tracking'
+import { activatePlan, activePlanId, setMealTime } from '../domain/tracking'
 import type { AppData } from '../domain/types'
-import { importPlan, SessionExpiredError, type Draft } from '../store/importPlan'
 import { parseData } from '../store/storage'
 import type { Update } from '../store/useAppData'
+import type { PlanImport } from '../store/usePlanImport'
 
 interface Props {
   account: Account
   data: AppData
   update: Update
   today: string
-  hasDraft: boolean
-  onDraft: (draft: Draft) => void
+  importer: PlanImport
 }
 
-export function PlanScreen({ account, data, update, today, hasDraft, onDraft }: Props) {
-  const [file, setFile] = useState<File | null>(null)
-  const [pasted, setPasted] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [expired, setExpired] = useState(false)
+export function PlanScreen({ account, data, update, today, importer }: Props) {
   const [backupMessage, setBackupMessage] = useState('')
   const [accountError, setAccountError] = useState('')
   const signOut = async () => setAccountError((await account.signOut()) ?? '')
   const activeId = activePlanId(data)
   const active = data.plans.find((plan) => plan.id === activeId)!
-  const input = file ?? pasted.trim()
 
-  const analyze = async () => {
-    setLoading(true)
-    setError('')
-    setExpired(false)
-    try {
-      onDraft(await importPlan(input))
-    } catch (caught) {
-      if (caught instanceof SessionExpiredError) setExpired(true)
-      else setError(caught instanceof Error ? caught.message : 'No se pudo procesar el plan.')
-    } finally {
-      setLoading(false)
-    }
+  const edit = () => {
+    if (importer.draft?.sourceText && !window.confirm('Tenés un plan sin revisar. ¿Descartarlo y editar el actual?')) return
+    importer.setDraft({ plan: active, sourceText: '' })
+    window.location.hash = '#/revisar'
   }
 
   const exportBackup = () => {
@@ -75,7 +61,7 @@ export function PlanScreen({ account, data, update, today, hasDraft, onDraft }: 
 
       <div className="card-header">
         <h2>{active.name}</h2>
-        <button type="button" className="link" onClick={() => onDraft({ plan: active, sourceText: '' })}>
+        <button type="button" className="link" onClick={edit}>
           Editar
         </button>
       </div>
@@ -98,66 +84,18 @@ export function PlanScreen({ account, data, update, today, hasDraft, onDraft }: 
         </details>
       )}
 
+      <details className="card">
+        <summary>Horarios de comidas</summary>
+        <MealTimesFields
+          plan={active}
+          times={data.settings?.mealTimes ?? {}}
+          onChange={(mealId, time) => update((current) => setMealTime(current, mealId, time))}
+        />
+      </details>
+
       <section className="card quiet">
         <h2>Cargar plan nuevo</h2>
-        {hasDraft && (
-          <p className="notice">
-            Tenés un borrador sin activar. <a href="#/revisar">Seguir revisando</a>
-          </p>
-        )}
-        <div className="file-picker">
-          <label className="button secondary">
-            <Icon name="file" size={18} />
-            {file ? 'Cambiar PDF' : 'Elegir PDF'}
-            <input
-              className="sr-only"
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null)
-                event.target.value = ''
-              }}
-            />
-          </label>
-          {file && (
-            <span className="file-name">
-              {file.name}
-              <button type="button" className="link" onClick={() => setFile(null)}>
-                Quitar
-              </button>
-            </span>
-          )}
-        </div>
-        <label className="field">
-          O pegá el texto
-          <textarea
-            rows={4}
-            value={pasted}
-            disabled={file !== null}
-            onChange={(event) => setPasted(event.target.value)}
-            placeholder="Desayuno / Merienda…"
-          />
-        </label>
-        <button type="button" className="button block" disabled={!input || loading} onClick={analyze}>
-          {loading ? 'Leyendo el plan… puede tardar un minuto' : 'Analizar con IA'}
-        </button>
-        <p className="hint">
-          El PDF se lee en tu dispositivo y solo el texto se envía a Cloudflare Workers AI. Antes de activarlo vas a
-          revisarlo.
-        </p>
-        {error && (
-          <p className="notice error" role="alert">
-            {error}
-          </p>
-        )}
-        {expired && (
-          <p className="notice error" role="alert">
-            Venció tu sesión.{' '}
-            <button type="button" className="link" onClick={signOut}>
-              Volver a ingresar
-            </button>
-          </p>
-        )}
+        <ImportForm importer={importer} onExpired={signOut} />
       </section>
 
       {data.plans.length > 1 && (
