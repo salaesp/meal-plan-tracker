@@ -26,7 +26,7 @@ import {
 } from '../src/domain/tracking'
 import { focusMeal, nextMeal, orderedMains, pendingMeals } from '../src/domain/schedule'
 import type { Plan } from '../src/domain/types'
-import { CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY } from '../src/store/storage'
+import { adoptLegacy, CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY, storageKeyFor } from '../src/store/storage'
 
 const newPlan: Plan = {
   ...seedPlan,
@@ -101,6 +101,27 @@ describe('fusión entre dispositivos', () => {
     const b = { ...base, days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status: 'failed' as const } }, waterMl: 0, extras: [], updatedAt: 2 } } }
     expect(mergeData(a, b).days[date]?.items.cena?.status).toBe('failed')
     expect(mergeData(b, a).days[date]?.items.cena?.status).toBe('failed')
+  })
+})
+
+describe('almacenamiento por cuenta', () => {
+  const memory = () => {
+    const map = new Map<string, string>()
+    return {
+      getItem: (key: string) => map.get(key) ?? null,
+      setItem: (key: string, value: string) => void map.set(key, value),
+      removeItem: (key: string) => void map.delete(key),
+    }
+  }
+
+  it('la primera cuenta hereda lo anterior y la segunda empieza de cero', () => {
+    const storage = memory()
+    storage.setItem(STORAGE_KEY, JSON.stringify(toggleStatus(initialData(), '2026-11-26', 'cena', 'done')))
+    adoptLegacy(storage, storageKeyFor('a'))
+    adoptLegacy(storage, storageKeyFor('b'))
+    expect(loadData(storage, storageKeyFor('a')).data.days['2026-11-26']).toBeDefined()
+    expect(loadData(storage, storageKeyFor('b')).data.days).toEqual({})
+    expect(storage.getItem(STORAGE_KEY)).toBeNull()
   })
 })
 

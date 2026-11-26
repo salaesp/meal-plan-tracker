@@ -2,7 +2,7 @@
 
 PWA para marcar cada día si respetaste el plan nutricional. Ingreso con Google. El registro
 (planes y días) se guarda en el dispositivo (`localStorage`) y, con sesión iniciada, también en D1
-(`/api/data`, un JSON por usuario) para verlo desde varios dispositivos; al abrir se fusiona por
+(`/api/data`, un JSON por usuario), que es la fuente de verdad; `localStorage` es una caché por cuenta. Al abrir se fusiona por
 día, gana la modificación más reciente. La IA (Cloudflare Workers AI) se usa solo para leer un plan
 nuevo.
 
