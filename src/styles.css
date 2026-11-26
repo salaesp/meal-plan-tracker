@@ -1614,3 +1614,13 @@ fieldset textarea {
 .extras-chips {
   margin-bottom: 0.75rem;
 }
+
+.quantity {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+p.quantity {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}

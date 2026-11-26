@@ -122,6 +122,7 @@ export function SectionList({ sections }: { sections: Section[] }) {
       {sections.map((section, index) => (
         <section className="plan-section" key={index}>
           <h3>{section.title}</h3>
+          {section.quantity && <p className="quantity">{section.quantity}</p>}
           {section.rule && <p className="rule">{section.rule}</p>}
           <ul>
             {section.options.map((option, optionIndex) => (
@@ -141,7 +142,10 @@ export function PlanOptions({ sections }: { sections: Section[] }) {
       {sections.map((section, index) => (
         <details key={index}>
           <summary>
-            <span>{section.title}</span>
+            <span>
+              {section.title}
+              {section.quantity && <b className="quantity"> · {section.quantity}</b>}
+            </span>
             <small className="hint-line">{sectionHint(section)}</small>
           </summary>
           {section.rule && <p className="rule">{section.rule}</p>}

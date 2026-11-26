@@ -82,6 +82,16 @@ describe('plan inicial', () => {
   })
 })
 
+describe('cantidades', () => {
+  it('conserva la cantidad de cada sección', () => {
+    const plan = parsePlan({
+      id: 'p',
+      meals: [{ id: 'almuerzo', name: 'Almuerzo', kind: 'meal', sections: [{ title: 'Proteína', quantity: ' 300 g en crudo ', rule: '', options: ['Pollo'] }] }],
+    })
+    expect(plan?.meals[0]?.sections[0]?.quantity).toBe('300 g en crudo')
+  })
+})
+
 describe('registro diario', () => {
   const date = '2026-11-26'
 

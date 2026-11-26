@@ -5,6 +5,8 @@ export interface Section {
   title: string
   /** Cómo se usa la lista: "Elegí 1", "Libres", etc. Puede quedar vacío. */
   rule: string
+  /** Cantidad de la sección tal como figura en el plan (ej. "300 g en crudo"). */
+  quantity?: string
   /** Resumen corto de qué incluye, para verlo sin desplegar. */
   hint?: string
   options: string[]

@@ -47,7 +47,8 @@ export function parseSections(value: unknown): Section[] {
       const options = asArray(entry.options).map(asText).filter(Boolean).slice(0, MAX_OPTIONS)
       if (!options.length && !rule) return []
       const hint = asText(entry.hint).slice(0, 120)
-      return [{ title: title || 'Opciones', rule, ...(hint ? { hint } : {}), options }]
+      const quantity = asText(entry.quantity).slice(0, 120)
+      return [{ title: title || 'Opciones', rule, ...(quantity ? { quantity } : {}), ...(hint ? { hint } : {}), options }]
     })
 }
 
