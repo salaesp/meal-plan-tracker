@@ -1,10 +1,12 @@
 # Mi plan de comidas
 
-PWA para marcar cada día si respetaste el plan nutricional. Ingreso con Google; por ahora los
-registros viven en el dispositivo (`localStorage`) y todavía no se sincronizan. La IA (Cloudflare
-Workers AI) se usa solo para leer un plan nuevo.
+PWA para marcar cada día si respetaste el plan nutricional. Ingreso con Google. El registro
+(planes y días) se guarda en el dispositivo (`localStorage`) y, con sesión iniciada, también en D1
+(`/api/data`, un JSON por usuario), que es la fuente de verdad; `localStorage` es una caché por cuenta. Al abrir se fusiona por
+día, gana la modificación más reciente. La IA (Cloudflare Workers AI) se usa solo para leer un plan
+nuevo.
 
-> **No abrir al público todavía.** Faltan sincronización por usuario, política de privacidad,
+> **No abrir al público todavía.** Faltan política de privacidad,
 > borrado de cuenta y límites de uso de IA. Mantener la pantalla de consentimiento de Google en
 > modo de prueba.
 

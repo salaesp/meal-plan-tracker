@@ -94,14 +94,14 @@ export function WeekScreen({ data, date, today, notify }: { data: AppData; date:
                         <span
                           className={`cell ${cell && !status && dates[index]! <= today ? 'empty' : ''}`}
                           role="img"
-                          aria-label={status?.label ?? (cell ? 'Sin registrar' : 'No aplica')}
+                          aria-label={status?.label ?? (cell ? 'No la hice' : 'No aplica')}
                         >
                           {status && <StatusIcon status={status.value} size={24} />}
                         </span>
                       </td>
                     )
                   })}
-                  <td className="count">{score?.counted ? `${score.counts.done}/${score.counted}` : '—'}</td>
+                  <td className="count">{score?.marked ? `${score.counts.done}/${score.marked}` : '—'}</td>
                 </tr>
               )
             })}
@@ -109,7 +109,7 @@ export function WeekScreen({ data, date, today, notify }: { data: AppData; date:
         </table>
       </div>
       <Legend />
-      <p className="hint">"No la hice" no cuenta: el plan indica reforzar las otras comidas.</p>
+      <p className="hint">Lo que queda vacío cuenta como "no la hice" y no entra en el cumplimiento.</p>
 
       <button type="button" className="button block" onClick={share}>
         <Icon name="share" size={18} />

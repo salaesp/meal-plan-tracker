@@ -21,7 +21,6 @@
   --done: #2f5d50;
   --partial: #3d6e8c;
   --failed: #a35a1f;
-  --skipped: #71685c;
   --on-status: #ffffff;
 
   --tint-desayuno: #f7e3bf;
@@ -69,7 +68,6 @@
     --done: #8fcdb8;
     --partial: #9cc3e0;
     --failed: #e8a867;
-    --skipped: #aba192;
     --on-status: #14120f;
 
     --tint-desayuno: #3a3020;
@@ -409,14 +407,6 @@ textarea {
   animation: pop 0.28s var(--ease-pop);
 }
 
-.status-icon.is-skipped {
-  border-color: var(--skipped);
-  border-style: dashed;
-  background: var(--surface);
-  color: var(--skipped);
-  animation: pop 0.28s var(--ease-pop);
-}
-
 .status-icon.is-done path[pathLength],
 .choice[aria-pressed='true'] path[pathLength] {
   stroke-dasharray: 1;
@@ -608,15 +598,15 @@ details.card > summary {
 }
 
 .choices-primary {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.choices-grid {
   grid-template-columns: repeat(2, 1fr);
 }
 
+.choices-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .choices-compact {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .choice-done {
@@ -631,8 +621,8 @@ details.card > summary {
   --status: var(--failed);
 }
 
-.choice-skipped {
-  --status: var(--skipped);
+.choice-none {
+  --status: var(--muted);
 }
 
 .choice {
@@ -687,9 +677,10 @@ details.card > summary {
 }
 
 .choices-grid .choice {
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: 0.25rem;
   min-height: 4.5rem;
-  padding-left: 1rem;
+  font-size: 0.875rem;
 }
 
 .choice:active {
@@ -817,10 +808,6 @@ li.current .status-icon.is-empty {
 
 .text-failed {
   color: var(--failed);
-}
-
-.text-skipped {
-  color: var(--skipped);
 }
 
 .row-badge {
@@ -1506,4 +1493,134 @@ fieldset textarea {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Gestos, menú rápido, copiar día ---------- */
+
+.day-screen {
+  min-height: 60dvh;
+}
+
+.day-row,
+.snack-chip {
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.quick-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgb(42 38 32 / 0.25);
+  animation: fade-in 0.15s ease-out;
+}
+
+.quick-menu {
+  position: absolute;
+  left: 50%;
+  width: min(calc(100% - 2rem), 22rem);
+  padding: 0.75rem;
+  transform: translateX(-50%);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1), 0 12px 40px rgb(42 38 32 / 0.25);
+  animation: fade-in 0.15s ease-out;
+}
+
+.quick-menu p {
+  margin: 0 0 0.5rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.quick-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+
+.quick-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 4.5rem;
+  padding: 0.4rem 0.1rem;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--sunk);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.quick-option .icon {
+  color: var(--status);
+}
+
+.quick-option[aria-pressed='true'] {
+  background: var(--status);
+  color: var(--on-status);
+}
+
+.quick-option[aria-pressed='true'] .icon {
+  color: var(--on-status);
+}
+
+.sheet-footer {
+  position: sticky;
+  bottom: calc(-1 * (env(safe-area-inset-bottom) + 1.5rem));
+  margin: 1.25rem -1.25rem 0;
+  padding: 0.75rem 1.25rem calc(env(safe-area-inset-bottom) + 1.5rem);
+  background: linear-gradient(to bottom, transparent, var(--surface) 0.75rem);
+}
+
+.copy-header {
+  justify-content: space-between;
+  padding-top: 1.25rem;
+}
+
+.copy-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.copy-day {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--sunk);
+  color: var(--text);
+  text-align: left;
+}
+
+.copy-day small {
+  color: var(--muted);
+}
+
+.extras-chips {
+  margin-bottom: 0.75rem;
+}
+
+.quantity {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+p.quantity {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
 }

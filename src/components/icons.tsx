@@ -5,12 +5,6 @@ const PATHS = {
   done: <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} />,
   partial: <path d="M5 9.5c2.3-2 4.7-2 7 0s4.7 2 7 0M5 15.5c2.3-2 4.7-2 7 0s4.7 2 7 0" />,
   failed: <path d="M5 9.5h14M5 15h14M15.5 4.5L8.5 20" />,
-  skipped: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M8.5 12h7" />
-    </>
-  ),
   desayuno: (
     <>
       <path d="M5 10h11v4.5a4.5 4.5 0 01-4.5 4.5h-2A4.5 4.5 0 015 14.5zM16 11h1.5a2.25 2.25 0 010 4.5H16" />

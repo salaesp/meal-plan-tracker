@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { seedPlan } from '../src/data/seedPlan'
 import { addDays, isISODate, weekDates } from '../src/domain/dates'
 import { finalizeDraft } from '../src/domain/draft'
+import { mergeData } from '../src/domain/merge'
 import { parsePlan, parseWater, planFromExtraction, sectionHint } from '../src/domain/parsing'
 import {
   activatePlan,
@@ -9,19 +10,23 @@ import {
   addExtra,
   changeWater,
   checklist,
+  copyableDays,
+  copyDay,
   dayScore,
   planForDate,
+  restoreDay,
   setCombined,
   setItem,
   toggleContext,
   toggleStatus,
+  toggleTrained,
   weekInsight,
   weekRows,
   weekSummary,
 } from '../src/domain/tracking'
 import { focusMeal, nextMeal, orderedMains, pendingMeals } from '../src/domain/schedule'
 import type { Plan } from '../src/domain/types'
-import { CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY } from '../src/store/storage'
+import { adoptLegacy, CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY, storageKeyFor } from '../src/store/storage'
 
 const newPlan: Plan = {
   ...seedPlan,
@@ -78,14 +83,80 @@ describe('plan inicial', () => {
   })
 })
 
+describe('fusión entre dispositivos', () => {
+  const date = '2026-11-26'
+  it('un dispositivo nuevo recibe el plan y los días del servidor', () => {
+    let server = activatePlan(initialData(), newPlan, '2026-11-20')
+    server = toggleStatus(server, date, 'desayuno', 'done')
+    server = { ...server, updatedAt: 100 }
+    const merged = mergeData(initialData(), server)
+    expect(merged.activations.at(-1)?.planId).toBe('plan-nuevo')
+    expect(merged.plans.map((plan) => plan.id)).toContain('plan-nuevo')
+    expect(merged.days[date]?.items.desayuno?.status).toBe('done')
+  })
+
+  it('cada día se queda con la versión más nueva', () => {
+    const base = initialData()
+    const a = { ...base, days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status: 'done' as const } }, waterMl: 0, extras: [], updatedAt: 1 } } }
+    const b = { ...base, days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status: 'failed' as const } }, waterMl: 0, extras: [], updatedAt: 2 } } }
+    expect(mergeData(a, b).days[date]?.items.cena?.status).toBe('failed')
+    expect(mergeData(b, a).days[date]?.items.cena?.status).toBe('failed')
+  })
+})
+
+describe('almacenamiento por cuenta', () => {
+  const memory = () => {
+    const map = new Map<string, string>()
+    return {
+      getItem: (key: string) => map.get(key) ?? null,
+      setItem: (key: string, value: string) => void map.set(key, value),
+      removeItem: (key: string) => void map.delete(key),
+    }
+  }
+
+  it('la primera cuenta hereda lo anterior y la segunda empieza de cero', () => {
+    const storage = memory()
+    storage.setItem(STORAGE_KEY, JSON.stringify(toggleStatus(initialData(), '2026-11-26', 'cena', 'done')))
+    adoptLegacy(storage, storageKeyFor('a'))
+    adoptLegacy(storage, storageKeyFor('b'))
+    expect(loadData(storage, storageKeyFor('a')).data.days['2026-11-26']).toBeDefined()
+    expect(loadData(storage, storageKeyFor('b')).data.days).toEqual({})
+    expect(storage.getItem(STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe('cantidades', () => {
+  it('conserva la cantidad de cada sección', () => {
+    const plan = parsePlan({
+      id: 'p',
+      meals: [{ id: 'almuerzo', name: 'Almuerzo', kind: 'meal', sections: [{ title: 'Proteína', quantity: ' 300 g en crudo ', rule: '', options: ['Pollo'] }] }],
+    })
+    expect(plan?.meals[0]?.sections[0]?.quantity).toBe('300 g en crudo')
+  })
+})
+
 describe('registro diario', () => {
   const date = '2026-11-26'
 
-  it('"No la hice" se registra pero no cuenta para el cumplimiento', () => {
+  it('lo que queda vacío no cuenta para el cumplimiento', () => {
     let data = toggleStatus(initialData(), date, 'desayuno', 'done')
     data = toggleStatus(data, date, 'almuerzo', 'partial')
-    data = toggleStatus(data, date, 'cena', 'skipped')
-    expect(dayScore(data, date)).toMatchObject({ marked: 3, counted: 2, total: 8, points: 1.5, ratio: 0.75 })
+    expect(dayScore(data, date)).toMatchObject({ marked: 2, total: 8, points: 1.5, ratio: 0.75 })
+  })
+
+  it('copia un día a otro y se puede deshacer', () => {
+    const from = '2026-11-25'
+    let data = toggleStatus(initialData(), from, 'desayuno', 'done')
+    data = toggleTrained(addExtra(changeWater(data, from, 1000), from, 'a', 'alfajor'), from)
+    data = toggleStatus(data, date, 'cena', 'failed')
+    const before = data.days[date]
+    const copied = copyDay(data, from, date)
+    expect(copied.days[date]).toMatchObject({ waterMl: 1000, trained: true })
+    expect(copied.days[date]?.items.desayuno?.status).toBe('done')
+    expect(copied.days[date]?.items.cena).toBeUndefined()
+    expect(copied.days[date]?.extras.map((extra) => extra.text)).toEqual(['alfajor'])
+    expect(restoreDay(copied, date, before).days[date]).toMatchObject({ ...before, updatedAt: expect.any(Number) })
+    expect(copyableDays(copied, date)).toEqual([from])
   })
 
   it('las colaciones combinadas se marcan juntas', () => {
@@ -133,13 +204,14 @@ describe('registro diario', () => {
     let data = toggleStatus(initialData(), date, 'cena', 'failed')
     data = toggleContext(data, date, 'cena', 'place', 'Afuera')
     data = toggleStatus(data, date, 'desayuno', 'done')
-    data = toggleStatus(data, date, 'merienda', 'skipped')
+    data = toggleTrained(data, date)
     data = addExtra(data, date, 'a', 'pizza', '18:30')
     data = toggleStatus(data, '2026-11-27', 'almuerzo', 'done')
     const summary = weekSummary(data, weekDates(date), date)
     expect(summary).toContain('Lun 23/11 al Jue 26/11')
-    expect(summary).toContain('Registradas: 3 de 32 (como el plan 1, distinto 1, no la hice 1)')
-    expect(summary).toContain('Cumplimiento sin contar comidas no hechas: 50%')
+    expect(summary).toContain('Registradas: 2 de 32 (como el plan 1, distinto 1)')
+    expect(summary).toContain('Cumplimiento de lo registrado: 50%')
+    expect(summary).toContain('Entrené')
     expect(summary).toContain('Cena: distinto — [afuera]')
     expect(summary).toContain('Algo más: 18:30 pizza')
     expect(summary).not.toContain('Vie 27/11')

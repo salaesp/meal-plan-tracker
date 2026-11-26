@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, type PointerEvent, type TouchEvent } from 'react'
 import type { MealTheme } from '../domain/mealTheme'
 import { sectionHint } from '../domain/parsing'
 import { STATUSES } from '../domain/tracking'
@@ -6,6 +6,65 @@ import type { Section, Status } from '../domain/types'
 import { Icon, StatusIcon } from './icons'
 
 export const vibrate = () => navigator.vibrate?.(10)
+
+const LONG_PRESS_MS = 450
+
+/** Mantener apretado: llama a `onLong` con el rect del elemento y anula el click que sigue. */
+export function useLongPress(onLong: (rect: DOMRect) => void) {
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const start = useRef({ x: 0, y: 0 })
+  const fired = useRef(false)
+  const cancel = () => clearTimeout(timer.current)
+  return {
+    onPointerDown: (event: PointerEvent<HTMLElement>) => {
+      fired.current = false
+      start.current = { x: event.clientX, y: event.clientY }
+      const target = event.currentTarget
+      cancel()
+      timer.current = setTimeout(() => {
+        fired.current = true
+        vibrate()
+        onLong(target.getBoundingClientRect())
+      }, LONG_PRESS_MS)
+    },
+    onPointerMove: (event: PointerEvent<HTMLElement>) => {
+      if (Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > 10) cancel()
+    },
+    onPointerUp: cancel,
+    onPointerLeave: cancel,
+    onPointerCancel: cancel,
+    onContextMenu: (event: { preventDefault: () => void }) => event.preventDefault(),
+    onClickCapture: (event: { stopPropagation: () => void; preventDefault: () => void }) => {
+      if (!fired.current) return
+      fired.current = false
+      event.stopPropagation()
+      event.preventDefault()
+    },
+  }
+}
+
+/** Deslizar horizontalmente. Ignora gestos mayormente verticales y los que empiezan en un campo de texto. */
+export function useSwipe(handlers: { left?: () => void; right?: () => void }) {
+  const start = useRef<{ x: number; y: number } | null>(null)
+  return {
+    onTouchStart: (event: TouchEvent) => {
+      const touch = event.touches[0]
+      const field = (event.target as HTMLElement).closest('input, textarea')
+      start.current = touch && !field && event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null
+    },
+    onTouchEnd: (event: TouchEvent) => {
+      const from = start.current
+      const touch = event.changedTouches[0]
+      start.current = null
+      if (!from || !touch) return
+      const dx = touch.clientX - from.x
+      const dy = touch.clientY - from.y
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return
+      if (dx < 0) handlers.left?.()
+      else handlers.right?.()
+    },
+  }
+}
 
 /**
  * - `primary`: "Como el plan" ancho arriba y las otras tres debajo (tarjeta Ahora).
@@ -63,6 +122,7 @@ export function SectionList({ sections }: { sections: Section[] }) {
       {sections.map((section, index) => (
         <section className="plan-section" key={index}>
           <h3>{section.title}</h3>
+          {section.quantity && <p className="quantity">{section.quantity}</p>}
           {section.rule && <p className="rule">{section.rule}</p>}
           <ul>
             {section.options.map((option, optionIndex) => (
@@ -82,7 +142,10 @@ export function PlanOptions({ sections }: { sections: Section[] }) {
       {sections.map((section, index) => (
         <details key={index}>
           <summary>
-            <span>{section.title}</span>
+            <span>
+              {section.title}
+              {section.quantity && <b className="quantity"> · {section.quantity}</b>}
+            </span>
             <small className="hint-line">{sectionHint(section)}</small>
           </summary>
           {section.rule && <p className="rule">{section.rule}</p>}

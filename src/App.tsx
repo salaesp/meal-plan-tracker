@@ -43,7 +43,7 @@ const TABS: { id: string; href: string; label: string; icon: IconName }[] = [
 ]
 
 export function App({ account }: { account: Account }) {
-  const { data, update, saveFailed, recovered } = useAppData()
+  const { data, update, saveFailed, recovered, loading } = useAppData(account.user?.id ?? null, account.user !== null && !account.offline)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const hash = useHash()
@@ -113,6 +113,14 @@ export function App({ account }: { account: Account }) {
         openMealId={route === 'comida' ? decodeURIComponent(itemKey).replace(/:dessert$/, '') : undefined}
         notify={notify}
       />
+    )
+  }
+
+  if (loading) {
+    return (
+      <p className="splash" role="status">
+        Cargando tu plan…
+      </p>
     )
   }
 

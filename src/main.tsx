@@ -11,6 +11,6 @@ registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthGate>{(account) => <App account={account} />}</AuthGate>
+    <AuthGate>{(account) => <App key={account.user?.id ?? 'guest'} account={account} />}</AuthGate>
   </StrictMode>,
 )

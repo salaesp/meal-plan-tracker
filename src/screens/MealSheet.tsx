@@ -130,6 +130,13 @@ export function MealSheet({ data, update, date, mealId, onMark, onClose }: Props
 
         <h3 className="sheet-label">Opciones del plan</h3>
         <PlanOptions sections={[...meal.sections, ...(meal.dessert ?? [])]} />
+
+        <div className="sheet-footer">
+          <button type="button" className="button block" onClick={onClose}>
+            <Icon name="done" size={18} />
+            Listo
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -5,6 +5,21 @@ import { STATUSES } from '../domain/tracking'
 import type { Activation, AppData, DayLog, ItemLog, Plan, Status } from '../domain/types'
 
 export const STORAGE_KEY = 'meal-plan:data'
+/** Cada cuenta guarda lo suyo; sin cuenta (solo desarrollo) se usa la clave base. */
+export const storageKeyFor = (userId: string | null) => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY)
+
+/**
+ * Antes de separar por cuenta todo se guardaba en `STORAGE_KEY`. La primera
+ * cuenta que entra se queda con eso; las siguientes empiezan de cero.
+ */
+export function adoptLegacy(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>, key: string): void {
+  if (key === STORAGE_KEY || storage.getItem(key) !== null) return
+  const legacy = storage.getItem(STORAGE_KEY)
+  if (legacy === null) return
+  storage.setItem(key, legacy)
+  storage.removeItem(STORAGE_KEY)
+}
+
 export const CORRUPT_KEY = 'meal-plan:corrupt'
 
 export function initialData(): AppData {
@@ -41,7 +56,15 @@ function parseDay(date: string, value: unknown): DayLog | null {
       : [],
   )
   const waterMl = typeof value.waterMl === 'number' && value.waterMl > 0 ? value.waterMl : 0
-  return { date, planId: value.planId, items, waterMl, extras }
+  return {
+    date,
+    planId: value.planId,
+    items,
+    waterMl,
+    extras,
+    trained: value.trained === true ? true : undefined,
+    updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
+  }
 }
 
 /** `null` si el contenido no es un guardado válido. */
@@ -75,7 +98,7 @@ export function parseData(raw: string): AppData | null {
     const day = parseDay(date, entry)
     if (day) days[date] = day
   }
-  return { version: 1, plans, activations, days }
+  return { version: 1, plans, activations, days, updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined }
 }
 
 export interface LoadResult {
@@ -84,8 +107,8 @@ export interface LoadResult {
   recovered: boolean
 }
 
-export function loadData(storage: Pick<Storage, 'getItem' | 'setItem'>): LoadResult {
-  const raw = storage.getItem(STORAGE_KEY)
+export function loadData(storage: Pick<Storage, 'getItem' | 'setItem'>, key = STORAGE_KEY): LoadResult {
+  const raw = storage.getItem(key)
   if (raw === null) return { data: initialData(), recovered: false }
   const data = parseData(raw)
   if (data) return { data, recovered: false }

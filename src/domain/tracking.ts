@@ -4,15 +4,13 @@ import type { AppData, DayLog, ItemLog, Meal, Plan, Status } from './types'
 export interface StatusInfo {
   value: Status
   label: string
-  /** `null`: no cuenta para el cumplimiento (el plan prevé saltear y reforzar). */
-  points: number | null
+  points: number
 }
 
 export const STATUSES: readonly StatusInfo[] = [
   { value: 'done', label: 'Como el plan', points: 1 },
   { value: 'partial', label: 'Parecido', points: 0.5 },
   { value: 'failed', label: 'Distinto', points: 0 },
-  { value: 'skipped', label: 'No la hice', points: null },
 ]
 
 export const statusInfo = (status: Status) => STATUSES.find((entry) => entry.value === status)!
@@ -62,7 +60,7 @@ export function dayLog(data: AppData, date: string): DayLog {
 }
 
 function updateDay(data: AppData, date: string, change: (log: DayLog) => DayLog): AppData {
-  return { ...data, days: { ...data.days, [date]: change(dayLog(data, date)) } }
+  return { ...data, days: { ...data.days, [date]: { ...change(dayLog(data, date)), updatedAt: Date.now() } } }
 }
 
 export function setItem(data: AppData, date: string, key: string, patch: ItemLog): AppData {
@@ -107,6 +105,52 @@ export function changeWater(data: AppData, date: string, deltaMl: number): AppDa
   return updateDay(data, date, (log) => ({ ...log, waterMl: Math.max(0, log.waterMl + deltaMl) }))
 }
 
+export function toggleTrained(data: AppData, date: string): AppData {
+  return updateDay(data, date, (log) => ({ ...log, trained: !log.trained }))
+}
+
+/** Hay algo cargado en el día (para avisar antes de pisarlo al copiar). */
+export function hasLogged(log: DayLog | undefined): boolean {
+  if (!log) return false
+  return (
+    Object.values(log.items).some((item) => item.status || item.note || item.combined) ||
+    log.waterMl > 0 ||
+    log.extras.length > 0 ||
+    Boolean(log.trained)
+  )
+}
+
+/** Días anteriores a `date` con algo cargado, del más reciente al más viejo. */
+export function copyableDays(data: AppData, date: string, limit = 14): string[] {
+  return Object.keys(data.days)
+    .filter((day) => day < date && hasLogged(data.days[day]))
+    .sort()
+    .reverse()
+    .slice(0, limit)
+}
+
+/** Copia comidas, agua, extras y entrenamiento de `from` a `to`, pisando lo que haya. Respeta el plan de `to`. */
+export function copyDay(data: AppData, from: string, to: string): AppData {
+  const source = data.days[from]
+  if (!source || from === to) return data
+  const keys = new Set(checklist(planForDate(data, to)).map((item) => item.key))
+  const items = Object.fromEntries(Object.entries(source.items).filter(([key]) => keys.has(key)))
+  const stamp = Date.now().toString(36)
+  const extras = source.extras.map((extra, index) => ({ id: `${stamp}-${index}`, text: extra.text }))
+  return updateDay(data, to, (log) => ({
+    ...log,
+    items: structuredClone(items),
+    waterMl: source.waterMl,
+    extras,
+    trained: source.trained,
+  }))
+}
+
+/** Devuelve el día a como estaba (`undefined`: día vacío). Sirve para deshacer. */
+export function restoreDay(data: AppData, date: string, log: DayLog | undefined): AppData {
+  return updateDay(data, date, () => log ?? dayLog({ ...data, days: {} }, date))
+}
+
 export function addExtra(data: AppData, date: string, id: string, text: string, time?: string): AppData {
   const trimmed = text.trim()
   if (!trimmed) return data
@@ -122,7 +166,7 @@ export function activatePlan(data: AppData, plan: Plan, today: string): AppData 
   const plans = data.plans.some((entry) => entry.id === plan.id) ? data.plans : [...data.plans, plan]
   const activations = [...data.activations.filter((entry) => entry.date < today), { date: today, planId: plan.id }]
   const days = Object.fromEntries(
-    Object.entries(data.days).map(([date, log]) => [date, date >= today ? { ...log, planId: plan.id } : log]),
+    Object.entries(data.days).map(([date, log]) => [date, date >= today ? { ...log, planId: plan.id, updatedAt: Date.now() } : log]),
   )
   return { ...data, plans, activations, days }
 }
@@ -131,21 +175,18 @@ export interface Score {
   total: number
   marked: number
   counts: Record<Status, number>
-  /** Registrados que cuentan para el cumplimiento (sin "No la hice"). */
-  counted: number
   points: number
-  /** 0 a 1; `null` si no hay nada que cuente. */
+  /** 0 a 1; `null` si no hay nada registrado. */
   ratio: number | null
 }
 
 function toScore(counts: Record<Status, number>, total: number): Score {
-  const marked = counts.done + counts.partial + counts.failed + counts.skipped
-  const counted = marked - counts.skipped
+  const marked = counts.done + counts.partial + counts.failed
   const points = counts.done + counts.partial * 0.5
-  return { total, marked, counts, counted, points, ratio: counted ? points / counted : null }
+  return { total, marked, counts, points, ratio: marked ? points / marked : null }
 }
 
-const emptyCounts = (): Record<Status, number> => ({ done: 0, partial: 0, failed: 0, skipped: 0 })
+const emptyCounts = (): Record<Status, number> => ({ done: 0, partial: 0, failed: 0 })
 
 export function scoreEntries(entries: (ItemLog | undefined)[]): Score {
   const counts = emptyCounts()
@@ -201,7 +242,7 @@ export function weekScore(rows: WeekRow[]): Score {
 
 /** Una frase que mira hacia adelante, sin porcentajes. */
 export function weekInsight(rows: WeekRow[]): string | null {
-  const scored = rows.filter((row) => row.score.counted >= 2)
+  const scored = rows.filter((row) => row.score.marked >= 2)
   if (!scored.length) return null
   const hardest = scored.reduce((a, b) => (b.score.ratio! < a.score.ratio! ? b : a))
   if (hardest.score.ratio === 1) return 'Todo lo registrado fue como el plan.'
@@ -226,7 +267,7 @@ export function weekSummary(data: AppData, dates: string[], today: string): stri
     `Registradas: ${total.marked} de ${total.total} (${countsText(total)})`,
   ]
   if (total.ratio !== null) {
-    lines.push(`Cumplimiento sin contar comidas no hechas: ${Math.round(total.ratio * 100)}%`)
+    lines.push(`Cumplimiento de lo registrado: ${Math.round(total.ratio * 100)}%`)
   }
   lines.push('', 'Por comida', ...rows.map((row) => `${row.label}: ${countsText(row.score)}`))
 
@@ -242,13 +283,14 @@ export function weekSummary(data: AppData, dates: string[], today: string): stri
       const note = entry?.note?.trim()
       const notable = (entry?.status && entry.status !== 'done') || note || context.length
       if (!notable) continue
-      const state = entry?.status ? statusInfo(entry.status).label.toLowerCase() : 'sin registrar'
+      const state = entry?.status ? statusInfo(entry.status).label.toLowerCase() : 'no la hice'
       const extra = [note, context.length ? `[${context.join(', ').toLowerCase()}]` : ''].filter(Boolean).join(' ')
       parts.push(`  ${itemTitle(plan, item)}: ${state}${extra ? ` — ${extra}` : ''}`)
     }
     if (log.extras.length) {
       parts.push(`  Algo más: ${log.extras.map((entry) => (entry.time ? `${entry.time} ${entry.text}` : entry.text)).join(', ')}`)
     }
+    if (log.trained) parts.push('  Entrené')
     if (plan.waterLiters > 0) {
       parts.push(`  Agua: ${(log.waterMl / 1000).toLocaleString('es-AR')} / ${plan.waterLiters.toLocaleString('es-AR')} L`)
     }
