@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { STATUSES } from '../domain/tracking'
 import type { Status } from '../domain/types'
+import { useCloseOnBack } from './common'
 import { Icon } from './icons'
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 
 /** Menú flotante con un ícono por opción, que sale al mantener apretada una comida. */
 export function QuickMenu({ title, value, anchor, onSelect, onClose }: Props) {
+  useCloseOnBack(onClose)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)

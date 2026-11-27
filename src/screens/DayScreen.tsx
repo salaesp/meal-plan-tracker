@@ -5,6 +5,7 @@ import {
   MealBadge,
   PlanOptions,
   StatusChoices,
+  useCloseOnBack,
   useDayEnter,
   useLongPress,
   useSwipe,
@@ -473,6 +474,7 @@ export function CopyDaySheet(props: { data: AppData; date: string; onPick: (from
   const { data, date } = props
   const days = copyableDays(data, date)
   const replacing = hasLogged(data.days[date])
+  useCloseOnBack(props.onClose)
   return (
     <div className="sheet-backdrop" onClick={props.onClose}>
       <div

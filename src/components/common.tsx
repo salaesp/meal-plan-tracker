@@ -22,6 +22,43 @@ export function useMediaQuery(query: string) {
   return matches
 }
 
+/** Pendiente del `history.back()` de una capa recién cerrada (ver `useCloseOnBack`). */
+let pendingBack: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Hace que el botón "atrás" (Android, gesto o navegador) cierre esta capa (panel, menú)
+ * en vez de navegar la pantalla de abajo. Al abrirse agrega una entrada al historial con la
+ * misma URL; si se cierra por otro lado (X, Escape, tocar afuera) la saca con `history.back()`.
+ * El `back` se difiere un tick para que un remontaje inmediato (StrictMode, o cerrar una capa
+ * y abrir otra) reuse la entrada en vez de apilar otra.
+ */
+export function useCloseOnBack(onClose: () => void) {
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    if (pendingBack !== null) {
+      clearTimeout(pendingBack)
+      pendingBack = null
+    } else {
+      window.history.pushState({ ...(window.history.state ?? {}), layer: true }, '')
+    }
+    let popped = false
+    const onPop = () => {
+      popped = true
+      closeRef.current()
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (popped) return
+      pendingBack = setTimeout(() => {
+        pendingBack = null
+        window.history.back()
+      }, 0)
+    }
+  }, [])
+}
+
 const LONG_PRESS_MS = 450
 
 /**

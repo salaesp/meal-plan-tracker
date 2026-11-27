@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Account } from '../auth/AuthGate'
 import { Avatar } from '../components/Avatar'
+import { useCloseOnBack } from '../components/common'
 import { Icon } from '../components/icons'
 import type { AppData } from '../domain/types'
 import { parseData } from '../store/storage'
@@ -22,6 +23,7 @@ export function SettingsSheet({ account, data, replace, today, onClose }: Props)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const { user } = account
+  useCloseOnBack(onClose)
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
