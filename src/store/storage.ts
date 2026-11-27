@@ -3,7 +3,7 @@ import { isISODate } from '../domain/dates'
 import { isRecord, parsePlan } from '../domain/parsing'
 import { parseTime } from '../domain/schedule'
 import { pruneDeletedPlans, STATUSES } from '../domain/tracking'
-import type { Activation, AppData, DayLog, ItemLog, Plan, Settings, Status } from '../domain/types'
+import type { Activation, AppData, DayLog, ItemLog, Plan, Settings, Status, Supplement } from '../domain/types'
 
 export const STORAGE_KEY = 'meal-plan:data'
 /** Cada cuenta guarda lo suyo; sin cuenta (solo desarrollo) se usa la clave base. */
@@ -48,7 +48,20 @@ function parseSettings(value: unknown): Settings | undefined {
       (pair): pair is [string, string] => typeof pair[1] === 'string' && parseTime(pair[1]) !== null,
     ),
   )
-  return { mealTimes, ...(isISODate(value.onboardedAt) ? { onboardedAt: value.onboardedAt } : {}) }
+  const supplements = Array.isArray(value.supplements) ? value.supplements.flatMap(parseSupplement) : undefined
+  return {
+    mealTimes,
+    ...(isISODate(value.onboardedAt) ? { onboardedAt: value.onboardedAt } : {}),
+    // Una lista vacía se conserva: dice que se quitaron todos.
+    ...(supplements ? { supplements } : {}),
+  }
+}
+
+function parseSupplement(value: unknown): Supplement[] {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || !isISODate(value.since)) return []
+  const name = value.name.trim()
+  if (!name) return []
+  return [{ id: value.id, name, since: value.since, ...(isISODate(value.until) ? { until: value.until } : {}) }]
 }
 
 const isStatus = (value: unknown): value is Status => STATUSES.some((entry) => entry.value === value)
@@ -76,6 +89,9 @@ function parseDay(date: string, value: unknown): DayLog | null {
       : [],
   )
   const waterMl = typeof value.waterMl === 'number' && value.waterMl > 0 ? value.waterMl : 0
+  const supplements = [
+    ...new Set((Array.isArray(value.supplements) ? value.supplements : []).filter((id) => typeof id === 'string')),
+  ] as string[]
   return {
     date,
     planId: value.planId,
@@ -83,6 +99,7 @@ function parseDay(date: string, value: unknown): DayLog | null {
     waterMl,
     extras,
     trained: value.trained === true ? true : undefined,
+    supplements: supplements.length ? supplements : undefined,
     updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
   }
 }

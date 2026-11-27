@@ -1,5 +1,5 @@
 import { addDays, formatDay } from './dates'
-import type { AppData, DayLog, ItemLog, Meal, Plan, Status } from './types'
+import type { AppData, DayLog, ItemLog, Meal, Plan, Status, Supplement } from './types'
 
 export interface StatusInfo {
   value: Status
@@ -109,6 +109,45 @@ export function toggleTrained(data: AppData, date: string): AppData {
   return updateDay(data, date, (log) => ({ ...log, trained: !log.trained }))
 }
 
+/** Suplementos que corresponden a una fecha, en el orden en que se agregaron. */
+export function supplementsFor(data: AppData, date: string): Supplement[] {
+  return (data.settings?.supplements ?? []).filter((entry) => entry.since <= date && (!entry.until || date < entry.until))
+}
+
+/** Suma un suplemento desde `date` en adelante. Si ya hay uno vigente con ese nombre, no hace nada. */
+export function addSupplement(data: AppData, date: string, id: string, name: string): AppData {
+  const trimmed = name.trim()
+  const key = trimmed.toLocaleLowerCase('es')
+  if (!trimmed || supplementsFor(data, date).some((entry) => entry.name.toLocaleLowerCase('es') === key)) return data
+  const supplements = [...(data.settings?.supplements ?? []), { id, name: trimmed, since: date }]
+  return { ...data, settings: { mealTimes: {}, ...data.settings, supplements } }
+}
+
+/**
+ * Deja de mostrar un suplemento desde `date`. Los días anteriores lo conservan
+ * (con lo que se marcó); si se había agregado ese mismo día, desaparece del todo.
+ */
+export function removeSupplement(data: AppData, date: string, id: string): AppData {
+  const current = data.settings?.supplements ?? []
+  const target = current.find((entry) => entry.id === id)
+  if (!target) return data
+  const supplements =
+    target.since >= date
+      ? current.filter((entry) => entry.id !== id)
+      : current.map((entry) => (entry.id === id ? { ...entry, until: date } : entry))
+  const next = { ...data, settings: { mealTimes: {}, ...data.settings, supplements } }
+  const taken = data.days[date]?.supplements
+  if (!taken?.includes(id)) return next
+  return updateDay(next, date, (log) => ({ ...log, supplements: taken.filter((entry) => entry !== id) }))
+}
+
+export function toggleSupplement(data: AppData, date: string, id: string): AppData {
+  return updateDay(data, date, (log) => {
+    const taken = log.supplements ?? []
+    return { ...log, supplements: taken.includes(id) ? taken.filter((entry) => entry !== id) : [...taken, id] }
+  })
+}
+
 /** Hay algo cargado en el día (para avisar antes de pisarlo al copiar). */
 export function hasLogged(log: DayLog | undefined): boolean {
   if (!log) return false
@@ -116,7 +155,8 @@ export function hasLogged(log: DayLog | undefined): boolean {
     Object.values(log.items).some((item) => item.status || item.note || item.combined) ||
     log.waterMl > 0 ||
     log.extras.length > 0 ||
-    Boolean(log.trained)
+    Boolean(log.trained) ||
+    Boolean(log.supplements?.length)
   )
 }
 
@@ -129,7 +169,10 @@ export function copyableDays(data: AppData, date: string, limit = 14): string[] 
     .slice(0, limit)
 }
 
-/** Copia comidas, agua, extras y entrenamiento de `from` a `to`, pisando lo que haya. Respeta el plan de `to`. */
+/**
+ * Copia comidas, agua, extras, entrenamiento y suplementos de `from` a `to`,
+ * pisando lo que haya. Respeta el plan y los suplementos vigentes de `to`.
+ */
 export function copyDay(data: AppData, from: string, to: string): AppData {
   const source = data.days[from]
   if (!source || from === to) return data
@@ -137,12 +180,15 @@ export function copyDay(data: AppData, from: string, to: string): AppData {
   const items = Object.fromEntries(Object.entries(source.items).filter(([key]) => keys.has(key)))
   const stamp = Date.now().toString(36)
   const extras = source.extras.map((extra, index) => ({ id: `${stamp}-${index}`, text: extra.text }))
+  const active = new Set(supplementsFor(data, to).map((entry) => entry.id))
+  const supplements = (source.supplements ?? []).filter((id) => active.has(id))
   return updateDay(data, to, (log) => ({
     ...log,
     items: structuredClone(items),
     waterMl: source.waterMl,
     extras,
     trained: source.trained,
+    supplements: supplements.length ? supplements : undefined,
   }))
 }
 
@@ -356,6 +402,16 @@ export function weekSummary(data: AppData, dates: string[], today: string): stri
       parts.push(`  Algo más: ${log.extras.map((entry) => (entry.time ? `${entry.time} ${entry.text}` : entry.text)).join(', ')}`)
     }
     if (log.trained) parts.push('  Entrené')
+    const supplements = supplementsFor(data, date)
+    if (supplements.length) {
+      const taken = new Set(log.supplements ?? [])
+      const missing = supplements.filter((entry) => !taken.has(entry.id))
+      parts.push(
+        missing.length
+          ? `  Suplementos: no tomé ${missing.map((entry) => entry.name).join(', ')}`
+          : '  Suplementos: todos',
+      )
+    }
     if (plan.waterLiters > 0) {
       parts.push(`  Agua: ${(log.waterMl / 1000).toLocaleString('es-AR')} / ${plan.waterLiters.toLocaleString('es-AR')} L`)
     }
