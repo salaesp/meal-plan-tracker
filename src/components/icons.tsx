@@ -32,6 +32,12 @@ const PATHS = {
   ),
   otra: <path d="M7 3v7a2 2 0 004 0V3M9 12v9M17 21V3c-2 1.5-3 4-3 7.5V14h3" />,
   agua: <path d="M12 3.5c3.2 3.9 6 7.2 6 10.5a6 6 0 01-12 0c0-3.3 2.8-6.6 6-10.5z" />,
+  suplementos: (
+    <>
+      <path d="M10.6 20.1a4.95 4.95 0 01-7-7l6.4-6.4a4.95 4.95 0 017 7z" />
+      <path d="M6.8 9.9l7 7" />
+    </>
+  ),
   entreno: <path d="M3.5 9.5v5M6.5 7v10M6.5 12h11M17.5 7v10M20.5 9.5v5" />,
   settings: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5" />,
   today: (

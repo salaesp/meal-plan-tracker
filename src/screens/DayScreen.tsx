@@ -20,6 +20,7 @@ import { mealSummary } from '../domain/parsing'
 import { focusMeal, nextMeal, orderedMains, pendingMeals, snackMeals } from '../domain/schedule'
 import {
   addExtra,
+  addSupplement,
   applyStatus,
   changeWater,
   checklist,
@@ -33,8 +34,11 @@ import {
   missedDay,
   planForDate,
   removeExtra,
+  removeSupplement,
   restoreDay,
   statusInfo,
+  supplementsFor,
+  toggleSupplement,
   toggleTrained,
   WATER_STEP_ML,
 } from '../domain/tracking'
@@ -242,8 +246,8 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           </>
         )}
 
-        <h2 className="group-title">Agua y entrenamiento</h2>
-        <Habits date={date} log={log} liters={plan.waterLiters} update={update} />
+        <h2 className="group-title">Agua, entrenamiento y suplementos</h2>
+        <Habits data={data} date={date} log={log} liters={plan.waterLiters} update={update} />
         <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
       </div>
 
@@ -395,12 +399,13 @@ function SnackChip({ meal, log, onOpen, onLong }: RowProps) {
   )
 }
 
-/** Agua y entrenamiento: secciones propias del día, con su color e ícono, no extras. */
-export function Habits(props: { date: string; log: DayLog; liters: number; update: Update }) {
+/** Agua, entrenamiento y suplementos: secciones propias del día, con su color e ícono, no extras. */
+export function Habits(props: { data: AppData; date: string; log: DayLog; liters: number; update: Update }) {
   return (
     <div className="habits">
       {props.liters > 0 && <WaterCard {...props} />}
       <TrainingCard date={props.date} log={props.log} update={props.update} />
+      <SupplementsCard data={props.data} date={props.date} log={props.log} update={props.update} />
     </div>
   )
 }
@@ -479,6 +484,112 @@ function TrainingCard(props: { date: string; log: DayLog; update: Update }) {
   )
 }
 
+/**
+ * Los suplementos se cargan acá mismo, una vez: desde ese día aparecen solos.
+ * "Editar" deja agregar más o quitar alguno (los días anteriores no cambian).
+ */
+function SupplementsCard(props: { data: AppData; date: string; log: DayLog; update: Update }) {
+  const { data, date, log, update } = props
+  const list = supplementsFor(data, date)
+  const taken = new Set(log.supplements ?? [])
+  const count = list.filter((entry) => taken.has(entry.id)).length
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  const showForm = editing || list.length === 0
+  const sub =
+    list.length === 0
+      ? 'Agregá los que tomás todos los días'
+      : editing
+        ? 'Los días anteriores no cambian'
+        : count === list.length
+          ? 'Tomaste todos'
+          : count === 0
+            ? 'Tocá los que tomaste'
+            : `Tomaste ${count} de ${list.length}`
+  return (
+    <section
+      className={`habit habit-suplementos${list.length > 0 && count === list.length && !editing ? ' complete' : ''}`}
+      aria-labelledby={`suplementos-${date}`}
+    >
+      <div className="habit-head">
+        <span className="meal-badge">
+          <Icon name="suplementos" size={24} />
+        </span>
+        <div className="habit-title">
+          <h3 id={`suplementos-${date}`} className="habit-name">
+            Suplementos
+          </h3>
+          <p className="habit-sub">{sub}</p>
+        </div>
+        {list.length > 0 && (
+          <button type="button" className="link" aria-pressed={editing} onClick={() => setEditing(!editing)}>
+            {editing ? 'Listo' : 'Editar'}
+          </button>
+        )}
+      </div>
+      {list.length > 0 && (
+        <ul className="supplements">
+          {list.map((entry) =>
+            editing ? (
+              <li key={entry.id}>
+                <span className="supplement editing">
+                  <span>{entry.name}</span>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={`Quitar ${entry.name}`}
+                    onClick={() => update((current) => removeSupplement(current, date, entry.id))}
+                  >
+                    <Icon name="close" size={18} />
+                  </button>
+                </span>
+              </li>
+            ) : (
+              <li key={entry.id}>
+                <button
+                  type="button"
+                  className="supplement"
+                  aria-pressed={taken.has(entry.id)}
+                  onClick={() => update((current) => toggleSupplement(current, date, entry.id))}
+                >
+                  <span className="supplement-check" aria-hidden="true">
+                    {taken.has(entry.id) && <Icon name="done" size={16} />}
+                  </span>
+                  {entry.name}
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+      {showForm && (
+        <form
+          className="inline-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+            update((current) => addSupplement(current, date, id, text))
+            setText('')
+            // Queda abierto para sumar el siguiente; "Listo" lo cierra.
+            setEditing(true)
+          }}
+        >
+          <input
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Ej. creatina"
+            aria-label="Suplemento que tomás todos los días"
+            maxLength={60}
+          />
+          <button type="submit" className="button" disabled={!text.trim()}>
+            Agregar
+          </button>
+        </form>
+      )}
+    </section>
+  )
+}
+
 export function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update: Update }) {
   const { date, log, update } = props
   const [text, setText] = useState('')
@@ -546,7 +657,7 @@ export function CopyDaySheet(props: { data: AppData; date: string; onPick: (from
           </button>
         </header>
         <p className="hint">
-          Copia comidas, agua, extras y entrenamiento{replacing ? ', y reemplaza lo que ya cargaste hoy' : ''}. Podés deshacerlo.
+          Copia comidas, agua, extras, entrenamiento y suplementos{replacing ? ', y reemplaza lo que ya cargaste hoy' : ''}. Podés deshacerlo.
         </p>
         {days.length === 0 && <p className="hint">Todavía no hay días anteriores con registro.</p>}
         <ul className="copy-list">

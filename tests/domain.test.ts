@@ -8,6 +8,7 @@ import {
   activatePlan,
   activePlanId,
   addExtra,
+  addSupplement,
   changeWater,
   checklist,
   copyableDays,
@@ -18,12 +19,15 @@ import {
   missedDay,
   otherPlans,
   planForDate,
+  removeSupplement,
   restoreDay,
   setCombined,
   setItem,
   setMealTime,
+  supplementsFor,
   toggleContext,
   toggleStatus,
+  toggleSupplement,
   toggleTrained,
   weekInsight,
   weekRows,
@@ -231,6 +235,81 @@ describe('registro diario', () => {
     expect(summary).toContain('Cena: distinto — [afuera]')
     expect(summary).toContain('Algo más: 18:30 pizza')
     expect(summary).not.toContain('Vie 27/11')
+  })
+})
+
+describe('suplementos', () => {
+  const date = '2026-11-26'
+  const names = (data: ReturnType<typeof initialData>, day: string) => supplementsFor(data, day).map((entry) => entry.name)
+
+  it('se cargan una vez y aparecen los días siguientes, no los anteriores', () => {
+    let data = addSupplement(initialData(), date, 'c', 'Creatina')
+    data = addSupplement(data, date, 'd', 'vitamina D')
+    expect(names(data, date)).toEqual(['Creatina', 'vitamina D'])
+    expect(names(data, '2026-12-03')).toEqual(['Creatina', 'vitamina D'])
+    expect(names(data, '2026-11-25')).toEqual([])
+  })
+
+  it('no repite un nombre ni acepta uno vacío', () => {
+    let data = addSupplement(initialData(), date, 'c', 'Creatina')
+    expect(addSupplement(data, date, 'x', ' creatina ')).toBe(data)
+    expect(addSupplement(data, date, 'y', '   ')).toBe(data)
+  })
+
+  it('se marcan por día', () => {
+    let data = addSupplement(initialData(), date, 'c', 'Creatina')
+    data = toggleSupplement(data, date, 'c')
+    expect(data.days[date]?.supplements).toEqual(['c'])
+    expect(data.days['2026-11-27']).toBeUndefined()
+    expect(toggleSupplement(data, date, 'c').days[date]?.supplements).toEqual([])
+  })
+
+  it('quitar uno no cambia los días anteriores', () => {
+    let data = addSupplement(initialData(), '2026-11-20', 'c', 'Creatina')
+    data = toggleSupplement(data, '2026-11-25', 'c')
+    data = toggleSupplement(data, date, 'c')
+    data = removeSupplement(data, date, 'c')
+    expect(names(data, '2026-11-25')).toEqual(['Creatina'])
+    expect(data.days['2026-11-25']?.supplements).toEqual(['c'])
+    expect(names(data, date)).toEqual([])
+    expect(data.days[date]?.supplements).toEqual([])
+    // Se puede volver a agregar con el mismo nombre.
+    expect(names(addSupplement(data, date, 'c2', 'Creatina'), date)).toEqual(['Creatina'])
+  })
+
+  it('quitar uno agregado el mismo día lo borra del todo', () => {
+    const data = removeSupplement(addSupplement(initialData(), date, 'c', 'Creatina'), date, 'c')
+    expect(data.settings?.supplements).toEqual([])
+  })
+
+  it('se copian con el día, solo los vigentes', () => {
+    let data = addSupplement(initialData(), '2026-11-20', 'c', 'Creatina')
+    data = addSupplement(data, '2026-11-20', 'm', 'Magnesio')
+    data = toggleSupplement(toggleSupplement(data, '2026-11-25', 'c'), '2026-11-25', 'm')
+    data = removeSupplement(data, date, 'm')
+    expect(copyDay(data, '2026-11-25', date).days[date]?.supplements).toEqual(['c'])
+  })
+
+  it('el resumen dice cuáles faltaron', () => {
+    let data = addSupplement(initialData(), date, 'c', 'Creatina')
+    data = addSupplement(data, date, 'd', 'Vitamina D')
+    data = toggleSupplement(data, date, 'c')
+    expect(weekSummary(data, [date], date)).toContain('Suplementos: no tomé Vitamina D')
+    data = toggleSupplement(data, date, 'd')
+    expect(weekSummary(data, [date], date)).toContain('Suplementos: todos')
+  })
+
+  it('sobreviven al guardado y, al fusionar, vale la lista del lado más nuevo', () => {
+    let data = addSupplement(initialData(), '2026-11-20', 'c', 'Creatina')
+    data = toggleSupplement(data, date, 'c')
+    expect(parseData(JSON.stringify(data))).toEqual(data)
+
+    const withList = { ...data, updatedAt: 1 }
+    const removed = { ...removeSupplement(data, date, 'c'), updatedAt: 2 }
+    expect(supplementsFor(mergeData(withList, removed), date)).toEqual([])
+    expect(supplementsFor(mergeData(removed, withList), date)).toEqual([])
+    // Un dispositivo sin lista no borra la del otro.
+    expect(mergeData({ ...initialData(), updatedAt: 3, settings: { mealTimes: {} } }, withList).settings?.supplements).toHaveLength(1)
   })
 })
 

@@ -158,7 +158,7 @@ export function DesktopDayScreen({ data, update, date, today, openMealId, notify
         </section>
 
         <aside className="desk-side" aria-label="Resto del día">
-          <Habits date={date} log={log} liters={plan.waterLiters} update={update} />
+          <Habits data={data} date={date} log={log} liters={plan.waterLiters} update={update} />
           <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
         </aside>
       </div>

@@ -58,6 +58,8 @@ export interface DayLog {
   updatedAt?: number
   /** Entrené ese día. */
   trained?: boolean
+  /** Ids de los suplementos que tomé ese día. */
+  supplements?: string[]
 }
 
 export interface Activation {
@@ -66,11 +68,26 @@ export interface Activation {
   planId: string
 }
 
+/**
+ * Suplemento que se toma todos los días. Se carga una vez desde el día y
+ * queda para los siguientes; no depende del plan.
+ */
+export interface Supplement {
+  id: string
+  name: string
+  /** Primer día (YYYY-MM-DD) en que aparece. */
+  since: string
+  /** Día desde el que deja de aparecer. Los días anteriores lo conservan. */
+  until?: string
+}
+
 export interface Settings {
   /** Hora habitual por comida (id → "HH:MM"). Sin valor se usa la sugerida. */
   mealTimes: Record<string, string>
   /** Fecha en que se completó la bienvenida. */
   onboardedAt?: string
+  /** Lista completa, también los que se dejaron de tomar (con `until`). */
+  supplements?: Supplement[]
 }
 
 export interface AppData {

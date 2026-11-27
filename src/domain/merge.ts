@@ -1,13 +1,19 @@
 import { pruneDeletedPlans } from './tracking'
 import type { Activation, AppData, DayLog, Settings } from './types'
 
-/** Horarios y bienvenida: se suman, y ante choque vale el lado más nuevo. */
+/**
+ * Horarios y bienvenida: se suman, y ante choque vale el lado más nuevo.
+ * Los suplementos se toman enteros del lado más nuevo que tenga lista (así
+ * quitar uno en un dispositivo no lo hace volver desde el otro).
+ */
 function mergeSettings(older: Settings | undefined, newer: Settings | undefined): Settings | undefined {
   if (!older || !newer) return newer ?? older
   const onboardedAt = newer.onboardedAt ?? older.onboardedAt
+  const supplements = newer.supplements ?? older.supplements
   return {
     mealTimes: { ...older.mealTimes, ...newer.mealTimes },
     ...(onboardedAt ? { onboardedAt } : {}),
+    ...(supplements ? { supplements } : {}),
   }
 }
 
