@@ -19,7 +19,7 @@ import {
 } from '../domain/tracking'
 import type { AppData, DayLog, Meal, Status } from '../domain/types'
 import type { Update } from '../store/useAppData'
-import { CopyDaySheet, ExtrasCard, WaterCard } from './DayScreen'
+import { CopyDaySheet, ExtrasCard, Habits } from './DayScreen'
 
 interface Props {
   data: AppData
@@ -158,7 +158,7 @@ export function DesktopDayScreen({ data, update, date, today, openMealId, notify
         </section>
 
         <aside className="desk-side" aria-label="Resto del día">
-          {plan.waterLiters > 0 && <WaterCard date={date} log={log} liters={plan.waterLiters} update={update} />}
+          <Habits date={date} log={log} liters={plan.waterLiters} update={update} />
           <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
         </aside>
       </div>

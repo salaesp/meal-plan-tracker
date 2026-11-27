@@ -17,6 +17,7 @@
   --accent-soft: #dce9e3;
   --danger: #9f2f1f;
   --water: #2f6f95;
+  --training: #8a3f5c;
 
   --done: #2f5d50;
   --partial: #3d6e8c;
@@ -29,6 +30,8 @@
   --tint-cena: #dcddf2;
   --tint-colacion: #ece5d6;
   --tint-otra: #ece5d6;
+  --tint-agua: #d9e8f1;
+  --tint-entreno: #f1dce5;
 
   --shadow-1: 0 1px 2px rgb(42 38 32 / 0.06), 0 6px 16px rgb(42 38 32 / 0.05);
   --shadow-2: 0 -8px 32px rgb(42 38 32 / 0.16);
@@ -64,6 +67,7 @@
     --accent-soft: #24382f;
     --danger: #f0968a;
     --water: #7fc0e6;
+    --training: #e7a3bf;
 
     --done: #8fcdb8;
     --partial: #9cc3e0;
@@ -76,6 +80,8 @@
     --tint-cena: #272a40;
     --tint-colacion: #2e2a23;
     --tint-otra: #2e2a23;
+    --tint-agua: #1f2f3a;
+    --tint-entreno: #36232c;
 
     --shadow-1: none;
     --shadow-2: 0 -1px 0 var(--line);
@@ -1077,6 +1083,126 @@ li.current .status-icon.is-empty {
   transform: scaleY(1);
 }
 
+/* ---------- Agua y entrenamiento: secciones propias, con color e ícono como las comidas ---------- */
+
+.habits {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.habit {
+  padding: 1.1rem 1.25rem 1.25rem;
+  border-radius: var(--r-xl);
+  background: var(--tint);
+}
+
+.habit-agua {
+  --tint: var(--tint-agua);
+  --habit: var(--water);
+}
+
+.habit-entreno {
+  --tint: var(--tint-entreno);
+  --habit: var(--training);
+}
+
+.habit-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.habit-head .meal-badge {
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--habit);
+}
+
+.habit-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.habit-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.habit-name {
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.habit-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.habit-amount {
+  font-family: var(--font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.habit-amount small {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.habit .glass {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.habit .icon-button.primary {
+  background: var(--water);
+}
+
+/* Entrenamiento: toda la tarjeta es el interruptor. */
+button.habit {
+  display: block;
+  width: 100%;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  transition: transform 0.15s;
+}
+
+button.habit:active {
+  transform: scale(0.98);
+}
+
+.habit-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 2px dashed var(--habit);
+  border-radius: 50%;
+  color: var(--on-status);
+  transition: background-color 0.2s;
+}
+
+.habit[aria-pressed='true'] .habit-toggle {
+  border-style: solid;
+  background: var(--habit);
+  animation: pop 0.3s var(--ease-pop);
+}
+
+.habit[aria-pressed='true'] .habit-sub {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .extras li {
   display: flex;
   align-items: center;
@@ -1980,9 +2106,6 @@ fieldset textarea {
   color: var(--muted);
 }
 
-.extras-chips {
-  margin-bottom: 0.75rem;
-}
 
 .quantity {
   color: var(--accent);
@@ -2214,6 +2337,10 @@ a.desk-day.selected:hover {
 
 .desk-side .card:first-child {
   margin-top: 0;
+}
+
+.desk-side .habits {
+  margin-bottom: 1.25rem;
 }
 
 @media (min-width: 1024px) {

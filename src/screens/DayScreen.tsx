@@ -241,7 +241,8 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           </>
         )}
 
-        {plan.waterLiters > 0 && <WaterCard date={date} log={log} liters={plan.waterLiters} update={update} />}
+        <h2 className="group-title">Agua y entrenamiento</h2>
+        <Habits date={date} log={log} liters={plan.waterLiters} update={update} />
         <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
       </div>
 
@@ -373,18 +374,35 @@ function SnackChip({ meal, log, onOpen, onLong }: RowProps) {
   )
 }
 
-export function WaterCard(props: { date: string; log: DayLog; liters: number; update: Update }) {
+/** Agua y entrenamiento: secciones propias del día, con su color e ícono, no extras. */
+export function Habits(props: { date: string; log: DayLog; liters: number; update: Update }) {
+  return (
+    <div className="habits">
+      {props.liters > 0 && <WaterCard {...props} />}
+      <TrainingCard date={props.date} log={props.log} update={props.update} />
+    </div>
+  )
+}
+
+function WaterCard(props: { date: string; log: DayLog; liters: number; update: Update }) {
   const { date, log, update } = props
   const format = (ml: number) => (ml / 1000).toLocaleString('es-AR')
   const targetMl = props.liters * 1000
   const glasses = Math.ceil(targetMl / WATER_STEP_ML)
+  const remaining = Math.max(0, targetMl - log.waterMl)
   const add = (deltaMl: number) => update((current) => changeWater(current, date, deltaMl))
   return (
-    <section className="card">
-      <div className="card-header">
-        <h2>Agua</h2>
-        <span>
-          {format(log.waterMl)} / {format(targetMl)} L
+    <section className="habit habit-agua" aria-labelledby={`agua-${date}`}>
+      <div className="habit-head">
+        <span className="meal-badge">
+          <Icon name="agua" size={24} />
+        </span>
+        <div className="habit-title">
+          <h3 id={`agua-${date}`} className="habit-name">Agua</h3>
+          <p className="habit-sub">{remaining > 0 ? `Te faltan ${format(remaining)} L` : 'Llegaste a la meta'}</p>
+        </div>
+        <span className="habit-amount">
+          {format(log.waterMl)} <small>/ {format(targetMl)} L</small>
         </span>
       </div>
       <div className="water">
@@ -414,6 +432,32 @@ export function WaterCard(props: { date: string; log: DayLog; liters: number; up
   )
 }
 
+function TrainingCard(props: { date: string; log: DayLog; update: Update }) {
+  const { date, log, update } = props
+  const trained = Boolean(log.trained)
+  return (
+    <button
+      type="button"
+      className="habit habit-entreno"
+      aria-pressed={trained}
+      onClick={() => update((current) => toggleTrained(current, date))}
+    >
+      <span className="habit-head">
+        <span className="meal-badge">
+          <Icon name="entreno" size={24} />
+        </span>
+        <span className="habit-title">
+          <span className="habit-name">Entrenamiento</span>
+          <span className="habit-sub">{trained ? 'Entrenaste' : 'Tocá si entrenaste'}</span>
+        </span>
+        <span className="habit-toggle" aria-hidden="true">
+          {trained && <Icon name="done" size={22} />}
+        </span>
+      </span>
+    </button>
+  )
+}
+
 export function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update: Update }) {
   const { date, log, update } = props
   const [text, setText] = useState('')
@@ -421,16 +465,6 @@ export function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean;
     <section className="card">
       <h2>Algo más</h2>
       <p className="hint">Lo que comiste fuera de las comidas, sin juzgar.</p>
-      <div className="chips extras-chips">
-        <button
-          type="button"
-          className="chip"
-          aria-pressed={Boolean(log.trained)}
-          onClick={() => update((current) => toggleTrained(current, date))}
-        >
-          Entrené
-        </button>
-      </div>
       {log.extras.length > 0 && (
         <ul className="extras">
           {log.extras.map((entry) => (
