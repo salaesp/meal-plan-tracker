@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent, type TouchEvent } from 'react'
+import { useEffect, useRef, useState, type AnimationEvent, type PointerEvent, type TouchEvent } from 'react'
 import type { MealTheme } from '../domain/mealTheme'
 import { sectionHint } from '../domain/parsing'
 import { STATUSES } from '../domain/tracking'
@@ -94,27 +94,159 @@ export function useLongPress(onLong: (rect: DOMRect) => void) {
   }
 }
 
-/** Deslizar horizontalmente. Ignora gestos mayormente verticales y los que empiezan en un campo de texto. */
-export function useSwipe(handlers: { left?: () => void; right?: () => void }) {
-  const start = useRef<{ x: number; y: number } | null>(null)
+export type DayDirection = 'next' | 'previous'
+
+/** Cambio de día pedido por gesto o botón: el día que entra lo usa para elegir de qué lado aparece. */
+let pendingEnter: { date: string; direction: DayDirection; at: number } | null = null
+
+export function announceDayChange(date: string, direction: DayDirection) {
+  pendingEnter = { date, direction, at: Date.now() }
+}
+
+/**
+ * Clase de entrada del día recién montado (`day-enter-next` / `day-enter-previous`), si se llegó
+ * con un gesto o un botón de día anterior/siguiente. Se limpia al terminar la animación.
+ */
+export function useDayEnter(date: string) {
+  const [direction, setDirection] = useState(() => {
+    const pending = pendingEnter
+    return pending && pending.date === date && Date.now() - pending.at < 1500 ? pending.direction : null
+  })
+  useEffect(() => {
+    if (pendingEnter?.date === date) pendingEnter = null
+  }, [date])
   return {
-    onTouchStart: (event: TouchEvent) => {
-      const touch = event.touches[0]
-      const field = (event.target as HTMLElement).closest('input, textarea')
-      start.current = touch && !field && event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null
-    },
-    onTouchEnd: (event: TouchEvent) => {
-      const from = start.current
-      const touch = event.changedTouches[0]
-      start.current = null
-      if (!from || !touch) return
-      const dx = touch.clientX - from.x
-      const dy = touch.clientY - from.y
-      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return
-      if (dx < 0) handlers.left?.()
-      else handlers.right?.()
+    className: direction ? `day-enter-${direction}` : '',
+    onAnimationEnd: (event: AnimationEvent<HTMLElement>) => {
+      if (event.target === event.currentTarget) setDirection(null)
     },
   }
+}
+
+const SWIPE_DISTANCE = 70
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Deslizar horizontalmente con respuesta visual: el elemento de `ref` sigue al dedo (con resistencia),
+ * al soltar pasado el umbral sale hacia ese lado y llama al handler; si no, vuelve a su lugar.
+ * Ignora gestos mayormente verticales (el navegador sigue haciendo scroll: el elemento necesita
+ * `touch-action: pan-y`) y los que empiezan en un campo de texto. Sin `left`/`right` ese lado
+ * solo se estira un poco y vuelve.
+ */
+export function useSwipe<T extends HTMLElement>(options: { left?: () => void; right?: () => void; enabled?: boolean }) {
+  const ref = useRef<T>(null)
+  const gesture = useRef<{
+    x: number
+    y: number
+    axis: 'x' | 'y' | null
+    dx: number
+    last: { x: number; t: number }
+    velocity: number
+  } | null>(null)
+  const leaving = useRef(false)
+  const enabled = options.enabled ?? true
+
+  const place = (offset: number, transition = '') => {
+    const element = ref.current
+    if (!element) return
+    element.style.transition = transition
+    element.style.transform = offset ? `translate3d(${offset}px, 0, 0)` : ''
+    element.style.willChange = offset && !transition ? 'transform' : ''
+  }
+  const springBack = () => place(0, 'transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1)')
+
+  // Si se deshabilita a mitad de gesto (se abrió un menú), volver a su lugar.
+  useEffect(() => {
+    if (!enabled && gesture.current) {
+      gesture.current = null
+      springBack()
+    }
+  })
+
+  const handlers = {
+    onTouchStart: (event: TouchEvent) => {
+      const touch = event.touches[0]
+      const field = (event.target as HTMLElement).closest('input, textarea, select')
+      if (!enabled || leaving.current || !touch || field || event.touches.length !== 1) {
+        gesture.current = null
+        return
+      }
+      const now = event.timeStamp
+      gesture.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        axis: null,
+        dx: 0,
+        last: { x: touch.clientX, t: now },
+        velocity: 0,
+      }
+    },
+    onTouchMove: (event: TouchEvent) => {
+      const current = gesture.current
+      const touch = event.touches[0]
+      if (!current || !touch) return
+      if (!enabled || event.touches.length !== 1) {
+        gesture.current = null
+        springBack()
+        return
+      }
+      const dx = touch.clientX - current.x
+      const dy = touch.clientY - current.y
+      if (!current.axis) {
+        if (Math.hypot(dx, dy) < 10) return
+        current.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y'
+      }
+      if (current.axis !== 'x') return
+      const dt = event.timeStamp - current.last.t
+      if (dt > 0) current.velocity = (touch.clientX - current.last.x) / dt
+      current.last = { x: touch.clientX, t: event.timeStamp }
+      current.dx = dx
+      if (reducedMotion()) return
+      const allowed = dx < 0 ? options.left : options.right
+      // Con resistencia; hacia un lado sin destino, apenas se estira.
+      const offset = allowed ? dx * 0.6 : (dx / (1 + Math.abs(dx) / 80)) * 0.35
+      place(offset)
+    },
+    onTouchEnd: () => finish(),
+    onTouchCancel: () => {
+      gesture.current = null
+      springBack()
+    },
+  }
+
+  const finish = () => {
+    const current = gesture.current
+    gesture.current = null
+    if (!current || current.axis !== 'x') return
+    const { dx, velocity } = current
+    const handler = dx < 0 ? options.left : options.right
+    const flick = Math.abs(dx) >= 30 && Math.abs(velocity) >= 0.4 && Math.sign(velocity) === Math.sign(dx)
+    if (!handler || !enabled || (Math.abs(dx) < SWIPE_DISTANCE && !flick)) {
+      springBack()
+      return
+    }
+    if (reducedMotion() || !ref.current) {
+      handler()
+      return
+    }
+    leaving.current = true
+    const element = ref.current
+    place(Math.sign(dx) * element.offsetWidth, 'transform 180ms cubic-bezier(0.4, 0, 1, 1), opacity 180ms linear')
+    element.style.opacity = '0'
+    setTimeout(() => {
+      handler()
+      // Si la pantalla no se reemplazó (no hubo cambio de ruta), que vuelva a verse.
+      setTimeout(() => {
+        leaving.current = false
+        if (ref.current) {
+          ref.current.style.opacity = ''
+          place(0)
+        }
+      }, 400)
+    }, 170)
+  }
+
+  return { ref, handlers }
 }
 
 /**
@@ -218,6 +350,8 @@ export function DateNav(props: {
   previous: string
   next: string | null
   unit: string
+  /** Avisa antes de navegar con las flechas (para animar el cambio en esa dirección). */
+  onNavigate?: (direction: DayDirection) => void
 }) {
   return (
     <header className="date-nav">
@@ -226,11 +360,21 @@ export function DateNav(props: {
         <h1>{props.title}</h1>
       </div>
       <div className="date-nav-buttons">
-        <a className="icon-button" href={props.previous} aria-label={`${props.unit} anterior`}>
+        <a
+          className="icon-button"
+          href={props.previous}
+          aria-label={`${props.unit} anterior`}
+          onClick={() => props.onNavigate?.('previous')}
+        >
           <Icon name="left" />
         </a>
         {props.next ? (
-          <a className="icon-button" href={props.next} aria-label={`${props.unit} siguiente`}>
+          <a
+            className="icon-button"
+            href={props.next}
+            aria-label={`${props.unit} siguiente`}
+            onClick={() => props.onNavigate?.('next')}
+          >
             <Icon name="right" />
           </a>
         ) : (

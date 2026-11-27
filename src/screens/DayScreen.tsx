@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { DateNav, MealBadge, PlanOptions, StatusChoices, useLongPress, useSwipe, type Notify } from '../components/common'
+import {
+  announceDayChange,
+  DateNav,
+  MealBadge,
+  PlanOptions,
+  StatusChoices,
+  useDayEnter,
+  useLongPress,
+  useSwipe,
+  type DayDirection,
+  type Notify,
+} from '../components/common'
 import { QuickMenu } from '../components/QuickMenu'
 import { Icon, StatusIcon } from '../components/icons'
 import { addDays, dayAndMonth, formatDay, longWeekday } from '../domain/dates'
@@ -74,12 +85,17 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
 
   const [quick, setQuick] = useState<{ meal: Meal; anchor: DOMRect } | null>(null)
   const [copying, setCopying] = useState(false)
-  const swipe = useSwipe({
-    left: () => date < today && (window.location.hash = `#/dia/${addDays(date, 1)}`),
-    right: () => {
-      window.location.hash = `#/dia/${addDays(date, -1)}`
-    },
+  const goTo = (direction: DayDirection) => {
+    const target = addDays(date, direction === 'next' ? 1 : -1)
+    announceDayChange(target, direction)
+    window.location.hash = `#/dia/${target}`
+  }
+  const swipe = useSwipe<HTMLDivElement>({
+    left: date < today ? () => goTo('next') : undefined,
+    right: () => goTo('previous'),
+    enabled: !openMealId && !copying && !quick,
   })
+  const enter = useDayEnter(date)
 
   const copyFrom = (from: string) => {
     const before = data.days[date]
@@ -113,107 +129,120 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
   }
 
   return (
-    <div {...(openMealId || copying || quick ? {} : swipe)} className="day-screen">
-      <DateNav
-        unit="Día"
-        eyebrow={isToday ? `Hoy · ${longWeekday(date)}` : longWeekday(date)}
-        title={dayAndMonth(date)}
-        previous={`#/dia/${addDays(date, -1)}`}
-        next={date < today ? `#/dia/${addDays(date, 1)}` : null}
-      />
-      <div className="day-progress" aria-live="polite">
-        <span className="pebbles" aria-hidden="true">
-          {checklist(plan).map((item) => (
-            <StatusIcon key={item.key} status={log.items[item.key]?.status} size={16} />
-          ))}
-        </span>
-        <span>
-          {score.marked} de {score.total} registradas
-        </span>
-        {!isToday && <a href="#/">Ir a hoy</a>}
-        <button type="button" className="link" onClick={() => setCopying(true)}>
-          Copiar otro día
-        </button>
-      </div>
-
-      {pending.length > 0 && (
-        <div className="banner">
-          <span>Te quedó sin registrar:</span>
-          {pending.map((meal) => (
-            <button key={meal.id} type="button" className="chip" onClick={() => open(meal.id)}>
-              {meal.name}
-            </button>
-          ))}
-        </div>
-      )}
-      {missed && pending.length === 0 && (
-        <div className="banner">
-          <span>
-            Ayer {missed.missing === 1 ? 'quedó 1 comida' : `quedaron ${missed.missing} comidas`} sin registrar.
+    <div className="day-screen">
+      {/* Lo que se desliza con el gesto. Las hojas y el menú quedan afuera: un transform rompería su position: fixed. */}
+      <div
+        ref={swipe.ref}
+        {...swipe.handlers}
+        className={`day-slide ${enter.className}`}
+        onAnimationEnd={enter.onAnimationEnd}
+      >
+        <DateNav
+          unit="Día"
+          eyebrow={isToday ? `Hoy · ${longWeekday(date)}` : longWeekday(date)}
+          title={dayAndMonth(date)}
+          previous={`#/dia/${addDays(date, -1)}`}
+          next={date < today ? `#/dia/${addDays(date, 1)}` : null}
+          onNavigate={(direction) => announceDayChange(addDays(date, direction === 'next' ? 1 : -1), direction)}
+        />
+        <div className="day-progress" aria-live="polite">
+          <span className="pebbles" aria-hidden="true">
+            {checklist(plan).map((item) => (
+              <StatusIcon key={item.key} status={log.items[item.key]?.status} size={16} />
+            ))}
           </span>
-          <a className="chip" href={`#/dia/${missed.date}`}>
-            Completar
-          </a>
-          <button
-            type="button"
-            className="banner-close"
-            aria-label="Cerrar aviso"
-            onClick={() => update((current) => dismissMissedDay(current, missed.date))}
-          >
-            <Icon name="close" size={18} />
+          <span>
+            {score.marked} de {score.total} registradas
+          </span>
+          {!isToday && (
+            <a href="#/" onClick={() => announceDayChange(today, 'next')}>
+              Ir a hoy
+            </a>
+          )}
+          <button type="button" className="link" onClick={() => setCopying(true)}>
+            Copiar otro día
           </button>
         </div>
-      )}
 
-      {focus ? (
-        <NowCard
-          key={focus.id}
-          meal={focus}
-          log={log}
-          onMark={mark}
-          onOpen={() => open(focus.id)}
-          onNext={() => setFocusId(focusMeal(plan, dayLog(data, date), currentHour(), times)?.id ?? null)}
-        />
-      ) : (
-        isToday &&
-        score.marked > 0 && <p className="done-message">Registraste todas las comidas de hoy.</p>
-      )}
-
-      <h2 className="group-title">{isToday ? 'Tu día' : 'Comidas'}</h2>
-      <ul className="day-list">
-        {orderedMains(plan, times).map(({ meal }, index, mains) => {
-          const focusIndex = mains.findIndex((entry) => entry.meal.id === focusId)
-          const position = focusIndex < 0 || index < focusIndex ? '' : index === focusIndex ? 'current' : 'upcoming'
-          return (
-            <li key={meal.id} className={position}>
-              <DayRow
-                meal={meal}
-                log={log}
-                current={position === 'current'}
-                onOpen={() => open(meal.id)}
-                onLong={(anchor) => setQuick({ meal, anchor })}
-              />
-            </li>
-          )
-        })}
-      </ul>
-      {snackMeals(plan).length > 0 && (
-        <>
-          <h2 className="group-title">
-            Colaciones <small>cuando quieras, mejor cerca del entrenamiento</small>
-          </h2>
-          <ul className="snack-chips">
-            {snackMeals(plan).map((meal) => (
-              <li key={meal.id}>
-                <SnackChip meal={meal} log={log} onOpen={() => open(meal.id)} onLong={(anchor) => setQuick({ meal, anchor })} />
-              </li>
+        {pending.length > 0 && (
+          <div className="banner">
+            <span>Te quedó sin registrar:</span>
+            {pending.map((meal) => (
+              <button key={meal.id} type="button" className="chip" onClick={() => open(meal.id)}>
+                {meal.name}
+              </button>
             ))}
-          </ul>
-        </>
-      )}
+          </div>
+        )}
+        {missed && pending.length === 0 && (
+          <div className="banner">
+            <span>
+              Ayer {missed.missing === 1 ? 'quedó 1 comida' : `quedaron ${missed.missing} comidas`} sin registrar.
+            </span>
+            <a className="chip" href={`#/dia/${missed.date}`} onClick={() => announceDayChange(missed.date, 'previous')}>
+              Completar
+            </a>
+            <button
+              type="button"
+              className="banner-close"
+              aria-label="Cerrar aviso"
+              onClick={() => update((current) => dismissMissedDay(current, missed.date))}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        )}
 
-      {plan.waterLiters > 0 && <WaterCard date={date} log={log} liters={plan.waterLiters} update={update} />}
-      <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
+        {focus ? (
+          <NowCard
+            key={focus.id}
+            meal={focus}
+            log={log}
+            onMark={mark}
+            onOpen={() => open(focus.id)}
+            onNext={() => setFocusId(focusMeal(plan, dayLog(data, date), currentHour(), times)?.id ?? null)}
+          />
+        ) : (
+          isToday &&
+          score.marked > 0 && <p className="done-message">Registraste todas las comidas de hoy.</p>
+        )}
+
+        <h2 className="group-title">{isToday ? 'Tu día' : 'Comidas'}</h2>
+        <ul className="day-list">
+          {orderedMains(plan, times).map(({ meal }, index, mains) => {
+            const focusIndex = mains.findIndex((entry) => entry.meal.id === focusId)
+            const position = focusIndex < 0 || index < focusIndex ? '' : index === focusIndex ? 'current' : 'upcoming'
+            return (
+              <li key={meal.id} className={position}>
+                <DayRow
+                  meal={meal}
+                  log={log}
+                  current={position === 'current'}
+                  onOpen={() => open(meal.id)}
+                  onLong={(anchor) => setQuick({ meal, anchor })}
+                />
+              </li>
+            )
+          })}
+        </ul>
+        {snackMeals(plan).length > 0 && (
+          <>
+            <h2 className="group-title">
+              Colaciones <small>cuando quieras, mejor cerca del entrenamiento</small>
+            </h2>
+            <ul className="snack-chips">
+              {snackMeals(plan).map((meal) => (
+                <li key={meal.id}>
+                  <SnackChip meal={meal} log={log} onOpen={() => open(meal.id)} onLong={(anchor) => setQuick({ meal, anchor })} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {plan.waterLiters > 0 && <WaterCard date={date} log={log} liters={plan.waterLiters} update={update} />}
+        <ExtrasCard date={date} log={log} isToday={isToday} update={update} />
+      </div>
 
       {openMealId && (
         <MealSheet data={data} update={update} date={date} mealId={openMealId} onMark={mark} onClose={close} />

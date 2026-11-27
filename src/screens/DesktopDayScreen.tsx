@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MealBadge, PlanOptions, StatusChoices, type Notify } from '../components/common'
+import { announceDayChange, MealBadge, PlanOptions, StatusChoices, useDayEnter, type Notify } from '../components/common'
 import { Icon } from '../components/icons'
 import { addDays, dayAndMonth, formatDay, longWeekday, parseISODate, weekDates } from '../domain/dates'
 import { mealTheme } from '../domain/mealTheme'
@@ -83,22 +83,29 @@ export function DesktopDayScreen({ data, update, date, today, openMealId, notify
     ...snackMeals(plan).map((meal) => ({ meal, time: 'Cuando quieras' })),
   ]
   const nextWeek = addDays(weekDates(date)[0]!, 7)
+  const enter = useDayEnter(date)
+  const announce = (target: string) => announceDayChange(target, target > date ? 'next' : 'previous')
 
   return (
     <div className="desk-day-screen">
       <nav className="desk-week" aria-label="Días de la semana">
-        <a className="icon-button" href={`#/dia/${addDays(date, -7)}`} aria-label="Semana anterior">
+        <a
+          className="icon-button"
+          href={`#/dia/${addDays(date, -7)}`}
+          aria-label="Semana anterior"
+          onClick={() => announce(addDays(date, -7))}
+        >
           <Icon name="left" />
         </a>
         <ul className="desk-days">
           {weekDates(date).map((day) => (
             <li key={day}>
-              <WeekDay data={data} day={day} today={today} selected={day === date} />
+              <WeekDay data={data} day={day} today={today} selected={day === date} onPick={() => announce(day)} />
             </li>
           ))}
         </ul>
         {nextWeek <= today ? (
-          <a className="icon-button" href={`#/dia/${nextWeek}`} aria-label="Semana siguiente">
+          <a className="icon-button" href={`#/dia/${nextWeek}`} aria-label="Semana siguiente" onClick={() => announce(nextWeek)}>
             <Icon name="right" />
           </a>
         ) : (
@@ -108,7 +115,7 @@ export function DesktopDayScreen({ data, update, date, today, openMealId, notify
         )}
       </nav>
 
-      <div className="desk-layout">
+      <div className={`desk-layout ${enter.className}`} onAnimationEnd={enter.onAnimationEnd}>
         <section aria-labelledby="desk-day-title">
           <header className="desk-head">
             <div>
@@ -161,7 +168,8 @@ export function DesktopDayScreen({ data, update, date, today, openMealId, notify
   )
 }
 
-function WeekDay({ data, day, today, selected }: { data: AppData; day: string; today: string; selected: boolean }) {
+function WeekDay(props: { data: AppData; day: string; today: string; selected: boolean; onPick: () => void }) {
+  const { data, day, today, selected } = props
   const parsed = parseISODate(day)
   const label = `${day === today ? 'Hoy' : SHORT_DAYS[parsed.getDay()]} ${parsed.getDate()}`
   if (day > today) {
@@ -178,6 +186,7 @@ function WeekDay({ data, day, today, selected }: { data: AppData; day: string; t
     <a
       className={selected ? 'desk-day selected' : 'desk-day'}
       href={`#/dia/${day}`}
+      onClick={selected ? undefined : props.onPick}
       aria-current={selected ? 'date' : undefined}
       aria-label={`${formatDay(day)}: ${score.marked} de ${score.total} registradas`}
     >

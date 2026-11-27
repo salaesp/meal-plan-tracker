@@ -1805,10 +1805,55 @@ fieldset textarea {
   }
 }
 
+/* Cambio de día: el día nuevo entra desde el lado hacia el que se avanzó. */
+@keyframes day-in-next {
+  from {
+    transform: translate3d(40%, 0, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes day-in-previous {
+  from {
+    transform: translate3d(-40%, 0, 0);
+    opacity: 0;
+  }
+}
+
+.day-enter-next {
+  animation: day-in-next 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.day-enter-previous {
+  animation: day-in-previous 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sin desplazamiento: solo un fundido corto (gana a la regla general por especificidad). */
+  .day-enter-next,
+  .day-enter-previous {
+    animation: fade-in 160ms ease-out !important;
+  }
+}
+
 /* ---------- Gestos, menú rápido, copiar día ---------- */
 
+/* Que el día saliendo o entrando de costado no agregue scroll horizontal (clip no rompe sticky). */
+.day-screen,
+.desk-day-screen {
+  overflow-x: clip;
+}
+
+/* Se extiende sobre el padding de main para que el recorte quede en el borde de la pantalla. */
 .day-screen {
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+}
+
+.day-slide {
   min-height: 60dvh;
+  /* El navegador solo hace scroll vertical; el gesto horizontal lo maneja useSwipe. */
+  touch-action: pan-y pinch-zoom;
 }
 
 .day-row,
