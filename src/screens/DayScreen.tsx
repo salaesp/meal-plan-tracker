@@ -175,7 +175,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           </div>
         )}
         {missed && pending.length === 0 && (
-          <div className="banner">
+          <div className="banner has-close">
             <span>
               Ayer {missed.missing === 1 ? 'quedó 1 comida' : `quedaron ${missed.missing} comidas`} sin registrar.
             </span>
