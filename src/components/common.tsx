@@ -24,20 +24,62 @@ export function useMediaQuery(query: string) {
 
 const LONG_PRESS_MS = 450
 
+/**
+ * Mientras el dedo sigue apoyado, evita que el sistema seleccione texto o abra su menú
+ * (lupa, "Copiar"…). Hace falta a nivel documento: el menú rápido aparece debajo del dedo
+ * antes de que el navegador dispare su propia pulsación larga, y esta caería sobre él.
+ * Si la pulsación larga se disparó, también anula el click que el navegador genera al
+ * soltar, que si no caería sobre el fondo del menú recién abierto y lo cerraría.
+ */
+function blockSelectionUntilRelease(fired: () => boolean) {
+  const block = (event: Event) => event.preventDefault()
+  const swallowClick = (event: MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    window.removeEventListener('click', swallowClick, true)
+  }
+  const release = (event?: Event) => {
+    document.removeEventListener('selectstart', block, true)
+    document.removeEventListener('contextmenu', block, true)
+    window.removeEventListener('pointerup', release, true)
+    window.removeEventListener('pointercancel', release, true)
+    if (event?.type === 'pointerup' && fired()) {
+      window.addEventListener('click', swallowClick, true)
+      setTimeout(() => window.removeEventListener('click', swallowClick, true), 400)
+    }
+  }
+  document.addEventListener('selectstart', block, true)
+  document.addEventListener('contextmenu', block, true)
+  window.addEventListener('pointerup', release, true)
+  window.addEventListener('pointercancel', release, true)
+  return release
+}
+
 /** Mantener apretado: llama a `onLong` con el rect del elemento y anula el click que sigue. */
 export function useLongPress(onLong: (rect: DOMRect) => void) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const start = useRef({ x: 0, y: 0 })
   const fired = useRef(false)
+  const release = useRef<(() => void) | undefined>(undefined)
   const cancel = () => clearTimeout(timer.current)
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current)
+      release.current?.()
+    },
+    [],
+  )
   return {
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
       fired.current = false
       start.current = { x: event.clientX, y: event.clientY }
       const target = event.currentTarget
       cancel()
+      release.current?.()
+      release.current = blockSelectionUntilRelease(() => fired.current)
       timer.current = setTimeout(() => {
         fired.current = true
+        window.getSelection()?.removeAllRanges()
         vibrate()
         onLong(target.getBoundingClientRect())
       }, LONG_PRESS_MS)
@@ -49,12 +91,6 @@ export function useLongPress(onLong: (rect: DOMRect) => void) {
     onPointerLeave: cancel,
     onPointerCancel: cancel,
     onContextMenu: (event: { preventDefault: () => void }) => event.preventDefault(),
-    onClickCapture: (event: { stopPropagation: () => void; preventDefault: () => void }) => {
-      if (!fired.current) return
-      fired.current = false
-      event.stopPropagation()
-      event.preventDefault()
-    },
   }
 }
 

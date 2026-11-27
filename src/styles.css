@@ -1814,8 +1814,16 @@ fieldset textarea {
 .day-row,
 .snack-chip {
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
+}
+
+/* Aparece bajo el dedo que sigue apoyado: que la pulsación larga del sistema no seleccione su texto. */
+.quick-backdrop {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .quick-backdrop {
