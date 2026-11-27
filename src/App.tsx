@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account } from './auth/AuthGate'
-import { Toast, type Notify, type ToastMessage } from './components/common'
+import { DESKTOP_QUERY, Toast, useMediaQuery, type Notify, type ToastMessage } from './components/common'
 import { Icon, type IconName } from './components/icons'
 import { isISODate, toISODate } from './domain/dates'
 import { activatePlan } from './domain/tracking'
 import type { AppData } from './domain/types'
 import { DayScreen } from './screens/DayScreen'
+import { DesktopDayScreen } from './screens/DesktopDayScreen'
 import { Onboarding } from './screens/Onboarding'
 import { PlanScreen } from './screens/PlanScreen'
 import { ReviewScreen } from './screens/ReviewScreen'
@@ -98,6 +99,7 @@ interface MainProps {
 
 function Main({ account, data, update, replace, importer, hash, today, saveFailed }: MainProps) {
   const [toast, setToast] = useState<ToastMessage | null>(null)
+  const desktop = useMediaQuery(DESKTOP_QUERY)
   const [, route = '', dateParam, itemKey = ''] = hash.split('/')
   // Las rutas con fecha futura o inválida caen en hoy.
   const date = isISODate(dateParam) && dateParam <= today ? dateParam : today
@@ -160,6 +162,18 @@ function Main({ account, data, update, replace, importer, hash, today, saveFaile
           importer={importer}
         />
       )
+  } else if (desktop) {
+    screen = (
+      <DesktopDayScreen
+        key={`${date}-${today}-${route === 'comida' ? itemKey : ''}`}
+        data={data}
+        update={update}
+        date={date}
+        today={today}
+        openMealId={route === 'comida' ? decodeURIComponent(itemKey).replace(/:dessert$/, '') : undefined}
+        notify={notify}
+      />
+    )
   } else {
     screen = (
       <DayScreen
@@ -176,7 +190,7 @@ function Main({ account, data, update, replace, importer, hash, today, saveFaile
 
   return (
     <>
-      <main>
+      <main className={desktop && tab === 'hoy' ? 'wide' : undefined}>
         {saveFailed && (
           <p className="notice error" role="alert">
             No se pudo guardar en este dispositivo. Exportá un backup desde Plan.

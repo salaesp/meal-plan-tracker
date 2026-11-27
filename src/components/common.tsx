@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent, type TouchEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent, type TouchEvent } from 'react'
 import type { MealTheme } from '../domain/mealTheme'
 import { sectionHint } from '../domain/parsing'
 import { STATUSES } from '../domain/tracking'
@@ -6,6 +6,21 @@ import type { Section, Status } from '../domain/types'
 import { Icon, StatusIcon } from './icons'
 
 export const vibrate = () => navigator.vibrate?.(10)
+
+/** Pantalla ancha: la app usa el diseño de escritorio. */
+export const DESKTOP_QUERY = '(min-width: 1024px)'
+
+export function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const list = window.matchMedia(query)
+    const onChange = () => setMatches(list.matches)
+    onChange()
+    list.addEventListener('change', onChange)
+    return () => list.removeEventListener('change', onChange)
+  }, [query])
+  return matches
+}
 
 const LONG_PRESS_MS = 450
 
@@ -70,11 +85,12 @@ export function useSwipe(handlers: { left?: () => void; right?: () => void }) {
  * - `primary`: "Como el plan" ancho arriba y las otras tres debajo (tarjeta Ahora).
  * - `grid`: 2×2 (hoja de detalle).
  * - `compact`: 4 en fila con etiqueta chica (postre).
+ * - `inline`: píldoras en fila con ícono y etiqueta (escritorio).
  */
 export function StatusChoices(props: {
   label: string
   value?: Status
-  variant: 'primary' | 'grid' | 'compact'
+  variant: 'primary' | 'grid' | 'compact' | 'inline'
   onSelect: (status: Status) => void
 }) {
   return (
@@ -95,7 +111,7 @@ export function StatusChoices(props: {
             props.onSelect(status.value)
           }}
         >
-          <Icon name={status.value} size={props.variant === 'compact' ? 18 : 22} />
+          <Icon name={status.value} size={props.variant === 'compact' || props.variant === 'inline' ? 18 : 22} />
           <span>{status.label}</span>
         </button>
       ))}

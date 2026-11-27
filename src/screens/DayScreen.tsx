@@ -335,7 +335,7 @@ function SnackChip({ meal, log, onOpen, onLong }: RowProps) {
   )
 }
 
-function WaterCard(props: { date: string; log: DayLog; liters: number; update: Update }) {
+export function WaterCard(props: { date: string; log: DayLog; liters: number; update: Update }) {
   const { date, log, update } = props
   const format = (ml: number) => (ml / 1000).toLocaleString('es-AR')
   const targetMl = props.liters * 1000
@@ -376,7 +376,7 @@ function WaterCard(props: { date: string; log: DayLog; liters: number; update: U
   )
 }
 
-function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update: Update }) {
+export function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update: Update }) {
   const { date, log, update } = props
   const [text, setText] = useState('')
   return (
@@ -432,7 +432,7 @@ function ExtrasCard(props: { date: string; log: DayLog; isToday: boolean; update
   )
 }
 
-function CopyDaySheet(props: { data: AppData; date: string; onPick: (from: string) => void; onClose: () => void }) {
+export function CopyDaySheet(props: { data: AppData; date: string; onPick: (from: string) => void; onClose: () => void }) {
   const { data, date } = props
   const days = copyableDays(data, date)
   const replacing = hasLogged(data.days[date])
