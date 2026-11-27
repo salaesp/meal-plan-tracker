@@ -692,6 +692,12 @@ textarea {
 
 /* ---------- Opciones del plan ---------- */
 
+/* Contiene el margen inferior de la última lista abierta: sin esto colapsa
+   fuera de la tarjeta y el último ítem queda pegado al borde. */
+.plan-options {
+  display: flow-root;
+}
+
 .plan-options details + details {
   border-top: 1px solid var(--line);
 }
