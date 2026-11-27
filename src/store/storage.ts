@@ -61,7 +61,15 @@ function parseSupplement(value: unknown): Supplement[] {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || !isISODate(value.since)) return []
   const name = value.name.trim()
   if (!name) return []
-  return [{ id: value.id, name, since: value.since, ...(isISODate(value.until) ? { until: value.until } : {}) }]
+  return [
+    {
+      id: value.id,
+      name,
+      since: value.since,
+      ...(isISODate(value.until) ? { until: value.until } : {}),
+      ...(typeof value.updatedAt === 'number' ? { updatedAt: value.updatedAt } : {}),
+    },
+  ]
 }
 
 const isStatus = (value: unknown): value is Status => STATUSES.some((entry) => entry.value === value)
@@ -101,6 +109,7 @@ function parseDay(date: string, value: unknown): DayLog | null {
     trained: value.trained === true ? true : undefined,
     supplements: supplements.length ? supplements : undefined,
     updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
+    ...(typeof value.supplementsAt === 'number' ? { supplementsAt: value.supplementsAt } : {}),
   }
 }
 

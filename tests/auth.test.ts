@@ -7,6 +7,7 @@ import { getPlatformProxy } from 'wrangler'
 import { authOptions, type D1 } from '../worker/auth'
 import worker, { type Env } from '../worker/index'
 import { readCachedUser, resolveAuth } from '../src/auth/state'
+import { addSupplement, supplementsFor, toggleTrained } from '../src/domain/tracking'
 import { initialData, parseData } from '../src/store/storage'
 
 const ORIGIN = 'http://localhost:5173'
@@ -101,9 +102,9 @@ describe('protección de /api', () => {
 })
 
 describe('registro en la base', () => {
-  const put = (headers: Headers, body: string) =>
+  const put = (headers: Headers, body: string, query = '') =>
     worker.fetch(
-      new Request(`${ORIGIN}/api/data`, { method: 'PUT', headers: new Headers([...headers, ['content-type', 'application/json']]), body }),
+      new Request(`${ORIGIN}/api/data${query}`, { method: 'PUT', headers: new Headers([...headers, ['content-type', 'application/json']]), body }),
       env,
     )
 
@@ -118,6 +119,22 @@ describe('registro en la base', () => {
     expect(parseData(read.data)?.updatedAt).toBe(5)
     const other = (await (await callApi('/api/data', second.headers, env, 'GET')).json()) as { data: unknown }
     expect(other.data).toBeNull()
+  })
+
+  it('una subida no pisa lo que otro dispositivo guardó antes; ?replace=1 sí', async () => {
+    const { headers } = await login('datos4@example.com')
+    const read = async () =>
+      parseData(((await (await callApi('/api/data', headers, env, 'GET')).json()) as { data: string }).data)!
+    const phone = addSupplement(initialData(), '2026-11-26', 'c', 'Creatina')
+    const computer = toggleTrained(initialData(), '2026-11-26')
+    await put(headers, JSON.stringify(phone))
+    await put(headers, JSON.stringify(computer))
+    const merged = await read()
+    expect(supplementsFor(merged, '2026-11-26').map((entry) => entry.name)).toEqual(['Creatina'])
+    expect(merged.days['2026-11-26']?.trained).toBe(true)
+
+    await put(headers, JSON.stringify(initialData()), '?replace=1')
+    expect(supplementsFor(await read(), '2026-11-26')).toEqual([])
   })
 
   it('rechaza datos inválidos y pedidos sin sesión', async () => {

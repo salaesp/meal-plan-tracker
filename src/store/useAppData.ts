@@ -5,9 +5,9 @@ import { createSync } from './sync'
 
 export type Update = (change: (data: AppData) => AppData) => void
 
-const PUSH_DELAY_MS = 1500
+const PUSH_DELAY_MS = 800
 /** Con la app a la vista, cada cuánto se buscan cambios de otros dispositivos. */
-const REFRESH_MS = 30_000
+const REFRESH_MS = 10_000
 
 function persist(key: string, data: AppData): boolean {
   try {

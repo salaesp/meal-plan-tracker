@@ -1,15 +1,27 @@
 import { pruneDeletedPlans } from './tracking'
-import type { Activation, AppData, DayLog, Settings } from './types'
+import type { Activation, AppData, DayLog, Settings, Supplement } from './types'
 
 /**
- * Horarios y bienvenida: se suman, y ante choque vale el lado más nuevo.
- * Los suplementos se toman enteros del lado más nuevo que tenga lista (así
- * quitar uno en un dispositivo no lo hace volver desde el otro).
+ * Cada suplemento se fusiona por separado: vale la versión con `updatedAt` más
+ * nuevo (los borrados también son versiones, así no vuelven). Antes se tomaba la
+ * lista entera del lado más nuevo y un dispositivo desactualizado borraba lo que
+ * se había agregado en otro.
  */
+function mergeSupplements(older: Supplement[] | undefined, newer: Supplement[] | undefined): Supplement[] | undefined {
+  if (!older || !newer) return newer ?? older
+  const byId = new Map<string, Supplement>()
+  for (const entry of [...older, ...newer]) {
+    const seen = byId.get(entry.id)
+    if (!seen || (entry.updatedAt ?? 0) >= (seen.updatedAt ?? 0)) byId.set(entry.id, entry)
+  }
+  return [...byId.values()]
+}
+
+/** Horarios y bienvenida: se suman, y ante choque vale el lado más nuevo. */
 function mergeSettings(older: Settings | undefined, newer: Settings | undefined): Settings | undefined {
   if (!older || !newer) return newer ?? older
   const onboardedAt = newer.onboardedAt ?? older.onboardedAt
-  const supplements = newer.supplements ?? older.supplements
+  const supplements = mergeSupplements(older.supplements, newer.supplements)
   return {
     mealTimes: { ...older.mealTimes, ...newer.mealTimes },
     ...(onboardedAt ? { onboardedAt } : {}),
@@ -18,8 +30,21 @@ function mergeSettings(older: Settings | undefined, newer: Settings | undefined)
 }
 
 /**
+ * Cada día se queda con la versión más reciente, salvo los suplementos
+ * tomados, que se deciden por su propia marca de tiempo.
+ */
+function mergeDay(mine: DayLog | undefined, theirs: DayLog | undefined): DayLog {
+  if (!mine || !theirs) return (mine ?? theirs)!
+  const winner = (mine.updatedAt ?? 0) >= (theirs.updatedAt ?? 0) ? mine : theirs
+  const loser = winner === mine ? theirs : mine
+  if ((loser.supplementsAt ?? 0) <= (winner.supplementsAt ?? 0)) return winner
+  const { supplements, supplementsAt } = loser
+  return { ...winner, supplements, supplementsAt }
+}
+
+/**
  * Une el registro de este dispositivo con el del servidor. Cada día se queda
- * con la versión más reciente; planes, activaciones y
+ * con la versión más reciente (ver `mergeDay`); planes, activaciones y
  * planes borrados se suman; del aviso descartado queda el más nuevo.
  */
 export function mergeData(local: AppData, remote: AppData): AppData {
@@ -27,9 +52,7 @@ export function mergeData(local: AppData, remote: AppData): AppData {
 
   const days: Record<string, DayLog> = {}
   for (const date of new Set([...Object.keys(local.days), ...Object.keys(remote.days)])) {
-    const mine = local.days[date]
-    const theirs = remote.days[date]
-    days[date] = !theirs || (mine && (mine.updatedAt ?? 0) >= (theirs.updatedAt ?? 0)) ? mine! : theirs
+    days[date] = mergeDay(local.days[date], remote.days[date])
   }
 
   // Si ambos activaron un plan el mismo día, vale el del lado con cambios más nuevos.

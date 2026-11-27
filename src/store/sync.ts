@@ -23,11 +23,11 @@ export function createSync({ read, write, request = (url, init) => fetch(url, in
   let running: Promise<void> | null = null
   let again = false
 
-  const upload = async (data: AppData, keepalive = false): Promise<boolean> => {
+  const upload = async (data: AppData, keepalive = false, replace = false): Promise<boolean> => {
     const mark = fingerprint(data)
-    if (mark === synced) return true
+    if (mark === synced && !replace) return true
     const body = JSON.stringify(data)
-    const response = await request('/api/data', {
+    const response = await request(replace ? '/api/data?replace=1' : '/api/data', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body,
@@ -40,7 +40,7 @@ export function createSync({ read, write, request = (url, init) => fetch(url, in
   const once = async () => {
     if (overwrite) {
       const local = read()
-      if (local && (await upload(local))) {
+      if (local && (await upload(local, false, true))) {
         overwrite = false
         downloaded = true
       }

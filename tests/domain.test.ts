@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { seedPlan } from '../src/data/seedPlan'
 import { addDays, isISODate, weekDates } from '../src/domain/dates'
 import { finalizeDraft } from '../src/domain/draft'
@@ -279,7 +279,8 @@ describe('suplementos', () => {
 
   it('quitar uno agregado el mismo día lo borra del todo', () => {
     const data = removeSupplement(addSupplement(initialData(), date, 'c', 'Creatina'), date, 'c')
-    expect(data.settings?.supplements).toEqual([])
+    expect(supplementsFor(data, date)).toEqual([])
+    expect(supplementsFor(data, '2027-01-01')).toEqual([])
   })
 
   it('se copian con el día, solo los vigentes', () => {
@@ -299,17 +300,55 @@ describe('suplementos', () => {
     expect(weekSummary(data, [date], date)).toContain('Suplementos: todos')
   })
 
-  it('sobreviven al guardado y, al fusionar, vale la lista del lado más nuevo', () => {
+  it('sobreviven al guardado y, al fusionar, un borrado no vuelve', () => {
+    vi.useFakeTimers({ now: 1000 })
     let data = addSupplement(initialData(), '2026-11-20', 'c', 'Creatina')
     data = toggleSupplement(data, date, 'c')
     expect(parseData(JSON.stringify(data))).toEqual(data)
 
     const withList = { ...data, updatedAt: 1 }
+    vi.setSystemTime(2000)
     const removed = { ...removeSupplement(data, date, 'c'), updatedAt: 2 }
+    vi.useRealTimers()
     expect(supplementsFor(mergeData(withList, removed), date)).toEqual([])
     expect(supplementsFor(mergeData(removed, withList), date)).toEqual([])
     // Un dispositivo sin lista no borra la del otro.
     expect(mergeData({ ...initialData(), updatedAt: 3, settings: { mealTimes: {} } }, withList).settings?.supplements).toHaveLength(1)
+  })
+
+  it('uno agregado en otro dispositivo no se pierde aunque este tenga cambios más nuevos', () => {
+    vi.useFakeTimers({ now: 1000 })
+    const base = addSupplement(initialData(), date, 'c', 'Creatina')
+    vi.setSystemTime(2000)
+    const phone = { ...addSupplement(base, date, 'm', 'Magnesio'), updatedAt: 2000 }
+    vi.setSystemTime(3000)
+    // La compu todavía no vio el magnesio y registra una comida.
+    const computer = { ...setItem(base, date, 'cena', { status: 'done' }), updatedAt: 3000 }
+    vi.useRealTimers()
+    for (const merged of [mergeData(phone, computer), mergeData(computer, phone)]) {
+      expect(names(merged, date)).toEqual(['Creatina', 'Magnesio'])
+      expect(merged.days[date]?.items.cena?.status).toBe('done')
+    }
+  })
+
+  it('marcar uno no se pierde si en el otro dispositivo se cambió otra cosa del día', () => {
+    vi.useFakeTimers({ now: 1000 })
+    const base = addSupplement(initialData(), date, 'c', 'Creatina')
+    vi.setSystemTime(2000)
+    const phone = toggleSupplement(base, date, 'c')
+    vi.setSystemTime(3000)
+    const computer = changeWater(base, date, 500)
+    vi.setSystemTime(4000)
+    // Desmarcar después también viaja.
+    const unticked = toggleSupplement(phone, date, 'c')
+    vi.useRealTimers()
+    for (const merged of [mergeData(phone, computer), mergeData(computer, phone)]) {
+      expect(merged.days[date]?.supplements).toEqual(['c'])
+      expect(merged.days[date]?.waterMl).toBe(500)
+    }
+    for (const merged of [mergeData(mergeData(phone, computer), unticked), mergeData(unticked, mergeData(computer, phone))]) {
+      expect(merged.days[date]?.supplements).toEqual([])
+    }
   })
 })
 

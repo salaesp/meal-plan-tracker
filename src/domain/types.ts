@@ -60,6 +60,12 @@ export interface DayLog {
   trained?: boolean
   /** Ids de los suplementos que tomé ese día. */
   supplements?: string[]
+  /**
+   * Última vez que se marcó o desmarcó un suplemento ese día (ms). Al fusionar,
+   * los suplementos se deciden por esto y no por `updatedAt`: marcar la
+   * creatina en el celu no se pierde si en la compu se registró una comida.
+   */
+  supplementsAt?: number
 }
 
 export interface Activation {
@@ -77,8 +83,14 @@ export interface Supplement {
   name: string
   /** Primer día (YYYY-MM-DD) en que aparece. */
   since: string
-  /** Día desde el que deja de aparecer. Los días anteriores lo conservan. */
+  /**
+   * Día desde el que deja de aparecer. Los días anteriores lo conservan.
+   * `until <= since` es un suplemento borrado: queda para que la fusión no lo
+   * resucite desde otro dispositivo.
+   */
   until?: string
+  /** Última modificación (ms), para fusionar cada suplemento por separado. */
+  updatedAt?: number
 }
 
 export interface Settings {

@@ -1,7 +1,10 @@
 /**
  * GET/PUT /api/data — el registro completo de la persona, para usarlo desde
- * varios dispositivos. El cliente hace la fusión; acá solo se valida y guarda.
+ * varios dispositivos. El cliente une antes de subir, pero entre su descarga y
+ * su subida otro dispositivo pudo guardar algo: por eso acá se vuelve a unir con
+ * lo que ya hay. `?replace=1` pisa todo (restaurar un backup).
  */
+import { mergeData } from '../src/domain/merge'
 import { parseData } from '../src/store/storage'
 import { jsonError, type D1 } from './auth'
 
@@ -21,8 +24,14 @@ export async function handlePutData(request: Request, db: D1 | undefined, userId
   if (origin && origin !== new URL(request.url).origin) return jsonError(403, 'Origen no permitido.')
   const text = await request.text()
   if (text.length > MAX_DATA_BYTES) return jsonError(413, 'Hay demasiados datos para guardar.')
-  const data = parseData(text)
-  if (!data) return jsonError(400, 'Datos inválidos.')
+  const incoming = parseData(text)
+  if (!incoming) return jsonError(400, 'Datos inválidos.')
+  const replace = new URL(request.url).searchParams.get('replace') === '1'
+  const row = replace
+    ? null
+    : ((await db.prepare('select data from user_data where user_id = ?').bind(userId).first()) as { data: string } | null)
+  const stored = row ? parseData(row.data) : null
+  const data = stored ? mergeData(incoming, stored) : incoming
   const updatedAt = Date.now()
   await db
     .prepare(

@@ -59,8 +59,17 @@ export function dayLog(data: AppData, date: string): DayLog {
   return data.days[date] ?? { date, planId: planForDate(data, date).id, items: {}, waterMl: 0, extras: [] }
 }
 
+const sameIds = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((id) => b.includes(id))
+
 function updateDay(data: AppData, date: string, change: (log: DayLog) => DayLog): AppData {
-  return { ...data, days: { ...data.days, [date]: { ...change(dayLog(data, date)), updatedAt: Date.now() } } }
+  const before = dayLog(data, date)
+  const after = change(before)
+  const now = Date.now()
+  const supplementsAt = sameIds(before.supplements, after.supplements) ? after.supplementsAt : now
+  return {
+    ...data,
+    days: { ...data.days, [date]: { ...after, updatedAt: now, ...(supplementsAt ? { supplementsAt } : {}) } },
+  }
 }
 
 export function setItem(data: AppData, date: string, key: string, patch: ItemLog): AppData {
@@ -119,22 +128,21 @@ export function addSupplement(data: AppData, date: string, id: string, name: str
   const trimmed = name.trim()
   const key = trimmed.toLocaleLowerCase('es')
   if (!trimmed || supplementsFor(data, date).some((entry) => entry.name.toLocaleLowerCase('es') === key)) return data
-  const supplements = [...(data.settings?.supplements ?? []), { id, name: trimmed, since: date }]
+  const supplements = [...(data.settings?.supplements ?? []), { id, name: trimmed, since: date, updatedAt: Date.now() }]
   return { ...data, settings: { mealTimes: {}, ...data.settings, supplements } }
 }
 
 /**
  * Deja de mostrar un suplemento desde `date`. Los días anteriores lo conservan
- * (con lo que se marcó); si se había agregado ese mismo día, desaparece del todo.
+ * (con lo que se marcó); si se había agregado ese mismo día, desaparece del todo
+ * (queda como borrado, `until = since`, para que otro dispositivo no lo traiga de vuelta).
  */
 export function removeSupplement(data: AppData, date: string, id: string): AppData {
   const current = data.settings?.supplements ?? []
   const target = current.find((entry) => entry.id === id)
   if (!target) return data
-  const supplements =
-    target.since >= date
-      ? current.filter((entry) => entry.id !== id)
-      : current.map((entry) => (entry.id === id ? { ...entry, until: date } : entry))
+  const until = target.since >= date ? target.since : date
+  const supplements = current.map((entry) => (entry.id === id ? { ...entry, until, updatedAt: Date.now() } : entry))
   const next = { ...data, settings: { mealTimes: {}, ...data.settings, supplements } }
   const taken = data.days[date]?.supplements
   if (!taken?.includes(id)) return next
