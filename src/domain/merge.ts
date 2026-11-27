@@ -1,3 +1,4 @@
+import { mergeDay } from './dayFields'
 import { pruneDeletedPlans } from './tracking'
 import type { Activation, AppData, DayLog, Settings, Supplement } from './types'
 
@@ -30,21 +31,8 @@ function mergeSettings(older: Settings | undefined, newer: Settings | undefined)
 }
 
 /**
- * Cada día se queda con la versión más reciente, salvo los suplementos
- * tomados, que se deciden por su propia marca de tiempo.
- */
-function mergeDay(mine: DayLog | undefined, theirs: DayLog | undefined): DayLog {
-  if (!mine || !theirs) return (mine ?? theirs)!
-  const winner = (mine.updatedAt ?? 0) >= (theirs.updatedAt ?? 0) ? mine : theirs
-  const loser = winner === mine ? theirs : mine
-  if ((loser.supplementsAt ?? 0) <= (winner.supplementsAt ?? 0)) return winner
-  const { supplements, supplementsAt } = loser
-  return { ...winner, supplements, supplementsAt }
-}
-
-/**
- * Une el registro de este dispositivo con el del servidor. Cada día se queda
- * con la versión más reciente (ver `mergeDay`); planes, activaciones y
+ * Une el registro de este dispositivo con el del servidor. Cada día se une
+ * campo por campo (ver `mergeDay`); planes, activaciones y
  * planes borrados se suman; del aviso descartado queda el más nuevo.
  */
 export function mergeData(local: AppData, remote: AppData): AppData {

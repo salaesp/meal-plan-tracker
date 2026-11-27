@@ -100,6 +100,11 @@ function parseDay(date: string, value: unknown): DayLog | null {
   const supplements = [
     ...new Set((Array.isArray(value.supplements) ? value.supplements : []).filter((id) => typeof id === 'string')),
   ] as string[]
+  const changedAt = isRecord(value.changedAt)
+    ? Object.fromEntries(
+        Object.entries(value.changedAt).filter((pair): pair is [string, number] => typeof pair[1] === 'number'),
+      )
+    : undefined
   return {
     date,
     planId: value.planId,
@@ -109,7 +114,7 @@ function parseDay(date: string, value: unknown): DayLog | null {
     trained: value.trained === true ? true : undefined,
     supplements: supplements.length ? supplements : undefined,
     updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
-    ...(typeof value.supplementsAt === 'number' ? { supplementsAt: value.supplementsAt } : {}),
+    ...(changedAt ? { changedAt } : {}),
   }
 }
 

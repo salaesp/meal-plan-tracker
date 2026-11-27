@@ -1,4 +1,5 @@
 import { addDays, formatDay } from './dates'
+import { stampChanges } from './dayFields'
 import type { AppData, DayLog, ItemLog, Meal, Plan, Status, Supplement } from './types'
 
 export interface StatusInfo {
@@ -59,17 +60,12 @@ export function dayLog(data: AppData, date: string): DayLog {
   return data.days[date] ?? { date, planId: planForDate(data, date).id, items: {}, waterMl: 0, extras: [] }
 }
 
-const sameIds = (a: string[] = [], b: string[] = []) => a.length === b.length && a.every((id) => b.includes(id))
-
 function updateDay(data: AppData, date: string, change: (log: DayLog) => DayLog): AppData {
   const before = dayLog(data, date)
   const after = change(before)
   const now = Date.now()
-  const supplementsAt = sameIds(before.supplements, after.supplements) ? after.supplementsAt : now
-  return {
-    ...data,
-    days: { ...data.days, [date]: { ...after, updatedAt: now, ...(supplementsAt ? { supplementsAt } : {}) } },
-  }
+  const changedAt = stampChanges(before, after, now)
+  return { ...data, days: { ...data.days, [date]: { ...after, updatedAt: now, changedAt } } }
 }
 
 export function setItem(data: AppData, date: string, key: string, patch: ItemLog): AppData {

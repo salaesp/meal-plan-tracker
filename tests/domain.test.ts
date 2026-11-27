@@ -36,7 +36,7 @@ import {
 import { blankPlan } from '../src/data/blankPlan'
 import { focusMeal, formatTime, nextMeal, orderedMains, parseTime, pendingMeals } from '../src/domain/schedule'
 import { loadDraft, saveDraft } from '../src/store/draft'
-import type { Plan } from '../src/domain/types'
+import type { AppData, Plan } from '../src/domain/types'
 import { adoptLegacy, CORRUPT_KEY, initialData, loadData, parseData, STORAGE_KEY, storageKeyFor } from '../src/store/storage'
 
 const newPlan: Plan = {
@@ -122,6 +122,77 @@ describe('fusión entre dispositivos', () => {
     expect(mergeData(a, b).days[date]?.items.cena?.status).toBe('failed')
     expect(mergeData(b, a).days[date]?.items.cena?.status).toBe('failed')
   })
+
+  /** Cada cambio en su propio milisegundo, sin depender del reloj real. */
+  const at = <T,>(ms: number, run: () => T): T => {
+    vi.useFakeTimers({ now: ms })
+    try {
+      return run()
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+  const both = (a: AppData, b: AppData) => [mergeData(a, b), mergeData(b, a)]
+
+  it('agua, entrenamiento y comidas de distintos dispositivos se suman en el mismo día', () => {
+    const base = at(1000, () => toggleStatus(initialData(), date, 'desayuno', 'done'))
+    const phone = at(2000, () => changeWater(toggleStatus(base, date, 'cena', 'done'), date, 500))
+    const computer = at(3000, () => toggleTrained(toggleStatus(base, date, 'almuerzo', 'partial'), date))
+    for (const merged of both(phone, computer)) {
+      const day = merged.days[date]!
+      expect(day.items.desayuno?.status).toBe('done')
+      expect(day.items.cena?.status).toBe('done')
+      expect(day.items.almuerzo?.status).toBe('partial')
+      expect(day.waterMl).toBe(500)
+      expect(day.trained).toBe(true)
+    }
+  })
+
+  it('si los dos cambiaron lo mismo, vale el cambio más nuevo aunque el día del otro sea más reciente', () => {
+    const base = at(1000, () => initialData())
+    const phone = at(2000, () => changeWater(base, date, 1000))
+    const computer = at(3000, () => toggleTrained(changeWater(base, date, 500), date))
+    // El celu vuelve a tocar el agua después que la compu, sin haber sincronizado.
+    const later = at(4000, () => changeWater(phone, date, 500))
+    for (const merged of both(later, computer)) {
+      expect(merged.days[date]?.waterMl).toBe(1500)
+      expect(merged.days[date]?.trained).toBe(true)
+    }
+    // Desmarcar una comida también viaja.
+    const marked = at(5000, () => toggleStatus(base, date, 'cena', 'done'))
+    const unmarked = at(6000, () => toggleStatus(marked, date, 'cena', 'done'))
+    const other = at(7000, () => changeWater(marked, date, 500))
+    for (const merged of both(unmarked, other)) {
+      expect(merged.days[date]?.items.cena?.status).toBeUndefined()
+      expect(merged.days[date]?.waterMl).toBe(500)
+    }
+  })
+
+  it('un día guardado antes de las marcas por campo se une como antes', () => {
+    const old = (status: 'done' | 'failed', waterMl: number, updatedAt: number) => ({
+      ...initialData(),
+      days: { [date]: { date, planId: 'plan-ejemplo', items: { cena: { status } }, waterMl, extras: [], updatedAt } },
+    })
+    const legacy = old('done', 1000, 1)
+    // El otro lado, también viejo, cambió el agua después con la versión nueva.
+    const updated = at(5000, () => changeWater(old('failed', 0, 2), date, 500))
+    for (const merged of both(legacy, updated)) {
+      expect(merged.days[date]?.items.cena?.status).toBe('failed')
+      expect(merged.days[date]?.waterMl).toBe(500)
+    }
+    expect(parseData(JSON.stringify(updated))).toEqual(updated)
+  })
+
+  it('deshacer cuenta como un cambio nuevo', () => {
+    const before = at(1000, () => toggleStatus(initialData(), date, 'cena', 'done'))
+    const copied = at(2000, () => changeWater(before, date, 1000))
+    const undone = at(3000, () => restoreDay(copied, date, before.days[date]))
+    const other = at(2500, () => toggleTrained(copied, date))
+    for (const merged of both(undone, other)) {
+      expect(merged.days[date]?.waterMl).toBe(0)
+      expect(merged.days[date]?.trained).toBe(true)
+    }
+  })
 })
 
 describe('almacenamiento por cuenta', () => {
@@ -175,7 +246,7 @@ describe('registro diario', () => {
     expect(copied.days[date]?.items.desayuno?.status).toBe('done')
     expect(copied.days[date]?.items.cena).toBeUndefined()
     expect(copied.days[date]?.extras.map((extra) => extra.text)).toEqual(['alfajor'])
-    expect(restoreDay(copied, date, before).days[date]).toMatchObject({ ...before, updatedAt: expect.any(Number) })
+    expect(restoreDay(copied, date, before).days[date]).toMatchObject({ ...before, updatedAt: expect.any(Number), changedAt: expect.any(Object) })
     expect(copyableDays(copied, date)).toEqual([from])
   })
 

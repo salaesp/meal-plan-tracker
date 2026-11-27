@@ -61,11 +61,11 @@ export interface DayLog {
   /** Ids de los suplementos que tomé ese día. */
   supplements?: string[]
   /**
-   * Última vez que se marcó o desmarcó un suplemento ese día (ms). Al fusionar,
-   * los suplementos se deciden por esto y no por `updatedAt`: marcar la
-   * creatina en el celu no se pierde si en la compu se registró una comida.
+   * Hora de cambio (ms) de cada parte del día: `planId`, `waterMl`, `trained`,
+   * `extras`, `supplements` e `item:<comida>`. Al fusionar, cada parte se decide
+   * por separado (ver `domain/dayFields.ts`).
    */
-  supplementsAt?: number
+  changedAt?: Record<string, number>
 }
 
 export interface Activation {
