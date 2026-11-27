@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { seedPlan } from '../src/data/seedPlan'
 import type { AppData } from '../src/domain/types'
-import { deletePlan, otherPlans, setItem, toggleTrained } from '../src/domain/tracking'
+import { deletePlan, dismissMissedDay, missedDay, otherPlans, setItem, toggleTrained } from '../src/domain/tracking'
 import { fingerprint, initialData, parseData } from '../src/store/storage'
 import { createSync } from '../src/store/sync'
 
@@ -125,5 +125,21 @@ describe('sincronización entre dispositivos', () => {
       expect(state.data!.days[DATE]?.items.cena?.status).toBe('done')
     }
     expect(parseData(server.data!)?.plans.map((plan) => plan.id)).toEqual([seedPlan.id])
+  })
+
+  it('un aviso cerrado en un dispositivo no vuelve en el otro', async () => {
+    const { request } = fakeServer()
+    const yesterday = '2026-03-01'
+    const phone = device(request, setItem(start(), yesterday, 'cena', { status: 'done' }))
+    const computer = device(request, null)
+    await phone.syncer.run()
+    await computer.syncer.run()
+    expect(missedDay(computer.state.data!, DATE)?.date).toBe(yesterday)
+
+    phone.edit((data) => ({ ...dismissMissedDay(data, yesterday), updatedAt: 5 }))
+    await phone.syncer.run()
+    await computer.syncer.run()
+    expect(missedDay(computer.state.data!, DATE)).toBeNull()
+    expect(missedDay(phone.state.data!, DATE)).toBeNull()
   })
 })

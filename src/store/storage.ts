@@ -129,6 +129,7 @@ export function parseData(raw: string): AppData | null {
     days,
     ...(settings ? { settings } : {}),
     ...(deletedPlans.length ? { deletedPlans } : {}),
+    ...(isISODate(value.dismissedMissedDay) ? { dismissedMissedDay: value.dismissedMissedDay } : {}),
     ...(typeof value.updatedAt === 'number' ? { updatedAt: value.updatedAt } : {}),
   })
 }

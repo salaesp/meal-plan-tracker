@@ -85,6 +85,11 @@ export interface AppData {
    * dispositivo (o con la base) no los resucite.
    */
   deletedPlans?: string[]
+  /**
+   * Último día (YYYY-MM-DD) cuyo aviso de "comidas sin registrar" se cerró.
+   * Un día posterior sin registrar vuelve a mostrar el aviso.
+   */
+  dismissedMissedDay?: string
   /** Última modificación (ms). */
   updatedAt?: number
 }

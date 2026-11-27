@@ -1,4 +1,4 @@
-import { formatDay } from './dates'
+import { addDays, formatDay } from './dates'
 import type { AppData, DayLog, ItemLog, Meal, Plan, Status } from './types'
 
 export interface StatusInfo {
@@ -237,6 +237,31 @@ export function scoreEntries(entries: (ItemLog | undefined)[]): Score {
 export function dayScore(data: AppData, date: string): Score {
   const items = data.days[date]?.items ?? {}
   return scoreEntries(checklist(planForDate(data, date)).map((item) => items[item.key]))
+}
+
+/** Aviso de comidas sin registrar del día anterior a `date`. */
+export interface MissedDay {
+  date: string
+  missing: number
+}
+
+/**
+ * Comidas que quedaron sin registrar el día anterior a `date`, o `null` si no
+ * hay nada pendiente o el aviso de ese día ya se descartó.
+ */
+export function missedDay(data: AppData, date: string): MissedDay | null {
+  const previous = addDays(date, -1)
+  if (!data.days[previous]) return null
+  if (data.dismissedMissedDay && data.dismissedMissedDay >= previous) return null
+  const score = dayScore(data, previous)
+  const missing = score.total - score.marked
+  return missing > 0 ? { date: previous, missing } : null
+}
+
+/** Descarta el aviso de `date`. Solo se recuerda el último día descartado. */
+export function dismissMissedDay(data: AppData, date: string): AppData {
+  if (data.dismissedMissedDay && data.dismissedMissedDay >= date) return data
+  return { ...data, dismissedMissedDay: date }
 }
 
 export interface WeekRow {

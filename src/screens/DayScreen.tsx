@@ -15,7 +15,9 @@ import {
   dayLog,
   dayScore,
   dessertKey,
+  dismissMissedDay,
   hasLogged,
+  missedDay,
   planForDate,
   removeExtra,
   restoreDay,
@@ -55,9 +57,7 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
   const [focusId, setFocusId] = useState(() => (isToday ? (focusMeal(plan, log, hour, times)?.id ?? null) : null))
   const focus = plan.meals.find((meal) => meal.id === focusId) ?? null
   const pending = isToday ? pendingMeals(plan, log, hour, times).filter((meal) => meal.id !== focusId) : []
-  const yesterday = addDays(date, -1)
-  const yesterdayScore = isToday && data.days[yesterday] ? dayScore(data, yesterday) : null
-  const yesterdayMissing = yesterdayScore ? yesterdayScore.total - yesterdayScore.marked : 0
+  const missed = isToday ? missedDay(data, date) : null
 
   const open = (mealId: string) => {
     openedFromDay = true
@@ -146,14 +146,22 @@ export function DayScreen({ data, update, date, today, openMealId, notify }: Pro
           ))}
         </div>
       )}
-      {yesterdayMissing > 0 && pending.length === 0 && (
+      {missed && pending.length === 0 && (
         <div className="banner">
           <span>
-            Ayer {yesterdayMissing === 1 ? 'quedó 1 comida' : `quedaron ${yesterdayMissing} comidas`} sin registrar.
+            Ayer {missed.missing === 1 ? 'quedó 1 comida' : `quedaron ${missed.missing} comidas`} sin registrar.
           </span>
-          <a className="chip" href={`#/dia/${yesterday}`}>
+          <a className="chip" href={`#/dia/${missed.date}`}>
             Completar
           </a>
+          <button
+            type="button"
+            className="banner-close"
+            aria-label="Cerrar aviso"
+            onClick={() => update((current) => dismissMissedDay(current, missed.date))}
+          >
+            <Icon name="close" size={18} />
+          </button>
         </div>
       )}
 

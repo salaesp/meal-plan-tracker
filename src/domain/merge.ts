@@ -14,7 +14,7 @@ function mergeSettings(older: Settings | undefined, newer: Settings | undefined)
 /**
  * Une el registro de este dispositivo con el del servidor. Cada día se queda
  * con la versión más reciente; planes, activaciones y
- * planes borrados se suman.
+ * planes borrados se suman; del aviso descartado queda el más nuevo.
  */
 export function mergeData(local: AppData, remote: AppData): AppData {
   const plans = [...local.plans, ...remote.plans.filter((plan) => !local.plans.some((own) => own.id === plan.id))]
@@ -36,6 +36,8 @@ export function mergeData(local: AppData, remote: AppData): AppData {
   const updatedAt = Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0) || undefined
   // Los borrados se suman: un plan borrado en un lado no vuelve desde el otro.
   const deletedPlans = [...new Set([...(local.deletedPlans ?? []), ...(remote.deletedPlans ?? [])])]
+  // El aviso descartado más reciente vale para los dos lados.
+  const dismissed = [local.dismissedMissedDay, remote.dismissedMissedDay].filter(Boolean).sort().pop()
   return pruneDeletedPlans({
     version: 1,
     plans,
@@ -43,6 +45,7 @@ export function mergeData(local: AppData, remote: AppData): AppData {
     days,
     ...(settings ? { settings } : {}),
     ...(deletedPlans.length ? { deletedPlans } : {}),
+    ...(dismissed ? { dismissedMissedDay: dismissed } : {}),
     ...(updatedAt ? { updatedAt } : {}),
   })
 }

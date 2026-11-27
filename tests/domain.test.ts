@@ -14,6 +14,8 @@ import {
   copyDay,
   dayScore,
   deletePlan,
+  dismissMissedDay,
+  missedDay,
   otherPlans,
   planForDate,
   restoreDay,
@@ -310,6 +312,50 @@ describe('borrar planes', () => {
     expect(activePlanId(merged)).toBe('plan-viejo')
     expect(merged.plans.some((plan) => plan.id === 'plan-viejo')).toBe(true)
     expect(merged.deletedPlans).toBeUndefined()
+  })
+})
+
+describe('aviso de comidas sin registrar ayer', () => {
+  const today = '2026-11-27'
+  const withYesterday = () => toggleStatus(initialData(), '2026-11-26', 'desayuno', 'done')
+
+  it('avisa cuántas comidas quedaron sin registrar ayer', () => {
+    const data = withYesterday()
+    const total = dayScore(data, '2026-11-26').total
+    expect(missedDay(data, today)).toEqual({ date: '2026-11-26', missing: total - 1 })
+  })
+
+  it('sin registro de ayer no avisa', () => {
+    expect(missedDay(initialData(), today)).toBeNull()
+  })
+
+  it('descartado, no vuelve para ese día ni después de guardar y leer', () => {
+    const data = dismissMissedDay(withYesterday(), '2026-11-26')
+    expect(data.dismissedMissedDay).toBe('2026-11-26')
+    expect(missedDay(data, today)).toBeNull()
+    expect(missedDay(parseData(JSON.stringify(data))!, today)).toBeNull()
+  })
+
+  it('un día nuevo sin registrar vuelve a mostrar el aviso', () => {
+    let data = dismissMissedDay(withYesterday(), '2026-11-26')
+    data = toggleStatus(data, '2026-11-27', 'desayuno', 'done')
+    expect(missedDay(data, '2026-11-28')?.date).toBe('2026-11-27')
+  })
+
+  it('descartar un día anterior no pisa uno más nuevo', () => {
+    const data = dismissMissedDay(withYesterday(), '2026-11-26')
+    expect(dismissMissedDay(data, '2026-11-20')).toBe(data)
+  })
+
+  it('la fusión se queda con el descarte más nuevo', () => {
+    const base = withYesterday()
+    const old = dismissMissedDay(base, '2026-11-20')
+    const recent = dismissMissedDay(base, '2026-11-26')
+    for (const merged of [mergeData(old, recent), mergeData(recent, old), mergeData(base, recent), mergeData(recent, base)]) {
+      expect(merged.dismissedMissedDay).toBe('2026-11-26')
+      expect(missedDay(merged, today)).toBeNull()
+    }
+    expect(mergeData(base, base).dismissedMissedDay).toBeUndefined()
   })
 })
 
