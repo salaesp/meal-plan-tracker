@@ -2,7 +2,7 @@ import { seedPlan } from '../data/seedPlan'
 import { isISODate } from '../domain/dates'
 import { isRecord, parsePlan } from '../domain/parsing'
 import { parseTime } from '../domain/schedule'
-import { STATUSES } from '../domain/tracking'
+import { pruneDeletedPlans, STATUSES } from '../domain/tracking'
 import type { Activation, AppData, DayLog, ItemLog, Plan, Settings, Status } from '../domain/types'
 
 export const STORAGE_KEY = 'meal-plan:data'
@@ -119,14 +119,18 @@ export function parseData(raw: string): AppData | null {
     if (day) days[date] = day
   }
   const settings = parseSettings(value.settings)
-  return {
+  const deletedPlans = (Array.isArray(value.deletedPlans) ? value.deletedPlans : []).filter(
+    (id): id is string => typeof id === 'string',
+  )
+  return pruneDeletedPlans({
     version: 1,
     plans,
     activations,
     days,
     ...(settings ? { settings } : {}),
+    ...(deletedPlans.length ? { deletedPlans } : {}),
     ...(typeof value.updatedAt === 'number' ? { updatedAt: value.updatedAt } : {}),
-  }
+  })
 }
 
 /**

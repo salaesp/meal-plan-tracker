@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { seedPlan } from '../src/data/seedPlan'
 import type { AppData } from '../src/domain/types'
-import { setItem, toggleTrained } from '../src/domain/tracking'
+import { deletePlan, otherPlans, setItem, toggleTrained } from '../src/domain/tracking'
 import { fingerprint, initialData, parseData } from '../src/store/storage'
 import { createSync } from '../src/store/sync'
 
@@ -101,5 +101,29 @@ describe('sincronización entre dispositivos', () => {
     await phone.syncer.run()
     expect(parseData(server.data!)?.days).toEqual({})
     expect(phone.state.data?.days).toEqual({})
+  })
+
+  it('un plan borrado en un dispositivo no vuelve desde el otro', async () => {
+    const { server, request } = fakeServer()
+    const other = { ...seedPlan, id: 'plan-otro', name: 'Plan otro' }
+    const phone = device(request, { ...start(), plans: [seedPlan, other] })
+    const computer = device(request, null)
+    await phone.syncer.run()
+    await computer.syncer.run()
+    expect(otherPlans(computer.state.data!).map((plan) => plan.id)).toEqual(['plan-otro'])
+
+    phone.edit((data) => ({ ...deletePlan(data, 'plan-otro'), updatedAt: 5 }))
+    await phone.syncer.run()
+    // La compu sigue teniendo el plan y además registra algo antes de bajar.
+    computer.edit((data) => setItem(data, DATE, 'cena', { status: 'done' }))
+    await computer.syncer.run()
+    await phone.syncer.run()
+
+    for (const { state } of [phone, computer]) {
+      expect(state.data!.plans.map((plan) => plan.id)).toEqual([seedPlan.id])
+      expect(otherPlans(state.data!)).toEqual([])
+      expect(state.data!.days[DATE]?.items.cena?.status).toBe('done')
+    }
+    expect(parseData(server.data!)?.plans.map((plan) => plan.id)).toEqual([seedPlan.id])
   })
 })

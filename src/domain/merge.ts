@@ -1,3 +1,4 @@
+import { pruneDeletedPlans } from './tracking'
 import type { Activation, AppData, DayLog, Settings } from './types'
 
 /** Horarios y bienvenida: se suman, y ante choque vale el lado más nuevo. */
@@ -12,7 +13,8 @@ function mergeSettings(older: Settings | undefined, newer: Settings | undefined)
 
 /**
  * Une el registro de este dispositivo con el del servidor. Cada día se queda
- * con la versión más reciente; planes y activaciones se suman.
+ * con la versión más reciente; planes, activaciones y
+ * planes borrados se suman.
  */
 export function mergeData(local: AppData, remote: AppData): AppData {
   const plans = [...local.plans, ...remote.plans.filter((plan) => !local.plans.some((own) => own.id === plan.id))]
@@ -32,5 +34,15 @@ export function mergeData(local: AppData, remote: AppData): AppData {
 
   const settings = mergeSettings(older.settings, newer.settings)
   const updatedAt = Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0) || undefined
-  return { version: 1, plans, activations, days, ...(settings ? { settings } : {}), ...(updatedAt ? { updatedAt } : {}) }
+  // Los borrados se suman: un plan borrado en un lado no vuelve desde el otro.
+  const deletedPlans = [...new Set([...(local.deletedPlans ?? []), ...(remote.deletedPlans ?? [])])]
+  return pruneDeletedPlans({
+    version: 1,
+    plans,
+    activations,
+    days,
+    ...(settings ? { settings } : {}),
+    ...(deletedPlans.length ? { deletedPlans } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+  })
 }

@@ -4,7 +4,7 @@ import { MealBadge, SectionList } from '../components/common'
 import { ImportForm } from '../components/ImportForm'
 import { MealTimesFields } from '../components/MealTimesFields'
 import { mealTheme } from '../domain/mealTheme'
-import { activatePlan, activePlanId, setMealTime } from '../domain/tracking'
+import { activatePlan, activePlanId, deletePlan, otherPlans, setMealTime } from '../domain/tracking'
 import type { AppData } from '../domain/types'
 import type { Update } from '../store/useAppData'
 import type { PlanImport } from '../store/usePlanImport'
@@ -19,9 +19,12 @@ interface Props {
 
 export function PlanScreen({ account, data, update, today, importer }: Props) {
   const [accountError, setAccountError] = useState('')
+  /** Plan cuyo borrado se está confirmando. */
+  const [confirming, setConfirming] = useState<string | null>(null)
   const signOut = async () => setAccountError((await account.signOut()) ?? '')
   const activeId = activePlanId(data)
   const active = data.plans.find((plan) => plan.id === activeId)!
+  const others = otherPlans(data)
 
   const edit = () => {
     if (importer.draft?.sourceText && !window.confirm('Tenés un plan sin revisar. ¿Descartarlo y editar el actual?')) return
@@ -79,24 +82,56 @@ export function PlanScreen({ account, data, update, today, importer }: Props) {
         )}
       </section>
 
-      {data.plans.length > 1 && (
+      {others.length > 0 && (
         <section className="card">
           <h2>Otros planes</h2>
-          <ul className="extras">
-            {data.plans
-              .filter((plan) => plan.id !== activeId)
-              .map((plan) => (
+          <ul className="extras other-plans">
+            {others.map((plan) =>
+              confirming === plan.id ? (
+                <li key={plan.id} className="confirm-delete" role="group" aria-label={`Borrar ${plan.name}`}>
+                  <span>
+                    ¿Borrar <strong>{plan.name}</strong>? No se puede deshacer. Los días que ya registraste con este
+                    plan se mantienen.
+                  </span>
+                  <span className="confirm-actions">
+                    <button type="button" className="link" onClick={() => setConfirming(null)}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="link danger"
+                      onClick={() => {
+                        update((current) => deletePlan(current, plan.id))
+                        setConfirming(null)
+                      }}
+                    >
+                      Sí, borrar
+                    </button>
+                  </span>
+                </li>
+              ) : (
                 <li key={plan.id}>
                   <span>{plan.name}</span>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => update((current) => activatePlan(current, plan, today))}
-                  >
-                    Activar desde hoy
-                  </button>
+                  <span className="confirm-actions">
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => update((current) => activatePlan(current, plan, today))}
+                    >
+                      Activar desde hoy
+                    </button>
+                    <button
+                      type="button"
+                      className="link danger"
+                      aria-label={`Borrar ${plan.name}`}
+                      onClick={() => setConfirming(plan.id)}
+                    >
+                      Borrar
+                    </button>
+                  </span>
                 </li>
-              ))}
+              ),
+            )}
           </ul>
         </section>
       )}

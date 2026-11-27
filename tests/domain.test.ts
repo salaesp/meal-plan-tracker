@@ -13,6 +13,8 @@ import {
   copyableDays,
   copyDay,
   dayScore,
+  deletePlan,
+  otherPlans,
   planForDate,
   restoreDay,
   setCombined,
@@ -244,6 +246,70 @@ describe('cambio de plan', () => {
     data = activatePlan(data, seedPlan, '2026-11-26')
     expect(data.plans).toHaveLength(2)
     expect(activePlanId(data)).toBe(seedPlan.id)
+  })
+})
+
+describe('borrar planes', () => {
+  const unused: Plan = { ...seedPlan, id: 'plan-viejo', name: 'Plan viejo' }
+
+  it('no deja borrar el plan activo', () => {
+    const data = activatePlan(initialData(), newPlan, '2026-11-26')
+    expect(deletePlan(data, 'plan-nuevo')).toBe(data)
+  })
+
+  it('un plan que nadie usó desaparece del todo', () => {
+    const data = { ...initialData(), plans: [seedPlan, unused] }
+    const after = deletePlan(data, 'plan-viejo')
+    expect(after.plans.map((plan) => plan.id)).toEqual([seedPlan.id])
+    expect(after.deletedPlans).toEqual(['plan-viejo'])
+    expect(otherPlans(after)).toEqual([])
+  })
+
+  it('el historial sigue usando el plan borrado', () => {
+    let data = toggleStatus(initialData(), '2026-11-25', 'colacion-2', 'done')
+    data = activatePlan(data, newPlan, '2026-11-26')
+    const after = deletePlan(data, seedPlan.id)
+    // Sale de la lista, pero los días pasados conservan sus comidas y marcas.
+    expect(otherPlans(after)).toEqual([])
+    expect(planForDate(after, '2026-11-25').id).toBe(seedPlan.id)
+    expect(planForDate(after, '2026-11-24').id).toBe(seedPlan.id)
+    expect(checklist(planForDate(after, '2026-11-25')).map((item) => item.key)).toContain('colacion-2')
+    expect(after.days['2026-11-25']?.items['colacion-2']?.status).toBe('done')
+    expect(weekRows(after, weekDates('2026-11-26')).find((row) => row.key === 'colacion-2')?.cells[2]?.status).toBe('done')
+  })
+
+  it('el borrado sobrevive guardar y leer', () => {
+    const data = deletePlan(activatePlan(initialData(), newPlan, '2026-11-26'), seedPlan.id)
+    const loaded = parseData(JSON.stringify(data))!
+    expect(loaded.deletedPlans).toEqual([seedPlan.id])
+    expect(otherPlans(loaded)).toEqual([])
+    expect(planForDate(loaded, '2026-11-25').id).toBe(seedPlan.id)
+  })
+
+  it('activarlo de nuevo lo saca de los borrados', () => {
+    let data = deletePlan(activatePlan(initialData(), newPlan, '2026-11-26'), seedPlan.id)
+    data = activatePlan(data, seedPlan, '2026-11-27')
+    expect(data.deletedPlans).toBeUndefined()
+    expect(otherPlans(data).map((plan) => plan.id)).toEqual(['plan-nuevo'])
+  })
+
+  it('la fusión no resucita un plan borrado en otro dispositivo', () => {
+    const base = { ...initialData(), plans: [seedPlan, unused] }
+    const deleted = { ...deletePlan(base, 'plan-viejo'), updatedAt: 1 }
+    for (const merged of [mergeData(base, deleted), mergeData(deleted, base)]) {
+      expect(merged.plans.map((plan) => plan.id)).toEqual([seedPlan.id])
+      expect(merged.deletedPlans).toEqual(['plan-viejo'])
+    }
+  })
+
+  it('si otro dispositivo lo activó mientras tanto, gana la activación', () => {
+    const base = { ...initialData(), plans: [seedPlan, unused], updatedAt: 1 }
+    const deleted = { ...deletePlan(base, 'plan-viejo'), updatedAt: 2 }
+    const activated = { ...activatePlan(base, unused, '2026-11-27'), updatedAt: 3 }
+    const merged = mergeData(deleted, activated)
+    expect(activePlanId(merged)).toBe('plan-viejo')
+    expect(merged.plans.some((plan) => plan.id === 'plan-viejo')).toBe(true)
+    expect(merged.deletedPlans).toBeUndefined()
   })
 })
 

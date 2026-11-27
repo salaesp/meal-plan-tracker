@@ -80,6 +80,11 @@ export interface AppData {
   /** Ordenadas por fecha ascendente. */
   activations: Activation[]
   days: Record<string, DayLog>
+  /**
+   * Ids de planes borrados. Se conservan para que la fusión con otro
+   * dispositivo (o con la base) no los resucite.
+   */
+  deletedPlans?: string[]
   /** Última modificación (ms). */
   updatedAt?: number
 }

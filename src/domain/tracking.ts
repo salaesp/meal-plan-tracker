@@ -173,7 +173,42 @@ export function activatePlan(data: AppData, plan: Plan, today: string): AppData 
   const days = Object.fromEntries(
     Object.entries(data.days).map(([date, log]) => [date, date >= today ? { ...log, planId: plan.id, updatedAt: Date.now() } : log]),
   )
-  return { ...data, plans, activations, days }
+  // Activar un plan lo saca de los borrados (y suelta los que ya no hacen falta).
+  return pruneDeletedPlans({ ...data, plans, activations, days })
+}
+
+/** El plan lo usa algún día registrado o alguna activación (historial). */
+export const planInUse = (data: AppData, planId: string) =>
+  data.activations.some((entry) => entry.planId === planId) ||
+  Object.values(data.days).some((log) => log.planId === planId)
+
+/** Planes que se ofrecen en "Otros planes": ni el activo ni los borrados. */
+export function otherPlans(data: AppData): Plan[] {
+  const activeId = activePlanId(data)
+  const deleted = new Set(data.deletedPlans ?? [])
+  return data.plans.filter((plan) => plan.id !== activeId && !deleted.has(plan.id))
+}
+
+/**
+ * Aplica los borrados. Un plan borrado desaparece de la lista, pero si el
+ * historial lo usa (días registrados o activaciones pasadas) su definición se
+ * conserva oculta: sin ella esos días no sabrían qué comidas tenían. Los que
+ * nadie usa se eliminan del todo. El plan activo nunca queda borrado.
+ */
+export function pruneDeletedPlans(data: AppData): AppData {
+  if (!data.deletedPlans) return data
+  const activeId = activePlanId(data)
+  const deletedPlans = [...new Set(data.deletedPlans)].filter((id) => id !== activeId).sort()
+  const deleted = new Set(deletedPlans)
+  const plans = data.plans.filter((plan) => !deleted.has(plan.id) || planInUse(data, plan.id))
+  const { deletedPlans: _drop, ...rest } = data
+  return { ...rest, plans, ...(deletedPlans.length ? { deletedPlans } : {}) }
+}
+
+/** Borra un plan que no es el activo. */
+export function deletePlan(data: AppData, planId: string): AppData {
+  if (planId === activePlanId(data) || !data.plans.some((plan) => plan.id === planId)) return data
+  return pruneDeletedPlans({ ...data, deletedPlans: [...(data.deletedPlans ?? []), planId] })
 }
 
 export interface Score {
