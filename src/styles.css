@@ -651,6 +651,23 @@ textarea {
   margin-top: 0;
 }
 
+.now-summary {
+  margin: -0.35rem 0 1rem;
+  font-size: 0.95rem;
+}
+
+.now .now-summary .link {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.now-options {
+  margin-bottom: 1rem;
+}
+
 .now .plan-options {
   padding: 0 1rem;
   border-radius: var(--r-md);

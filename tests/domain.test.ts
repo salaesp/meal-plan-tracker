@@ -3,7 +3,7 @@ import { seedPlan } from '../src/data/seedPlan'
 import { addDays, isISODate, weekDates } from '../src/domain/dates'
 import { finalizeDraft } from '../src/domain/draft'
 import { mergeData } from '../src/domain/merge'
-import { parsePlan, parseWater, planFromExtraction, sectionHint } from '../src/domain/parsing'
+import { mealSummary, parsePlan, parseWater, planFromExtraction, sectionHint } from '../src/domain/parsing'
 import {
   activatePlan,
   activePlanId,
@@ -87,6 +87,15 @@ describe('plan inicial', () => {
     expect(sectionHint({ title: 'x', rule: '', options: ['Arroz (integral)', 'Fideos: 1 plato', 'Papa, batata'] })).toBe(
       'Arroz · Fideos · Papa',
     )
+  })
+
+  it('arma qué comer en una frase, con el postre aparte', () => {
+    const almuerzo = seedPlan.meals.find((meal) => meal.name === 'Almuerzo')!
+    expect(mealSummary(almuerzo)).toBe(
+      'Pollo, pescado, carne o legumbres + arroz, fideos o papa + ensaladas o cocidos. Postre: fruta o yogur.',
+    )
+    expect(mealSummary({ sections: [{ title: 'x', rule: '', options: ['Mate'] }], dessert: null })).toBe('Mate.')
+    expect(mealSummary({ sections: [], dessert: null })).toBe('')
   })
 })
 

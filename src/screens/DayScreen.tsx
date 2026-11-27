@@ -16,6 +16,7 @@ import { QuickMenu } from '../components/QuickMenu'
 import { Icon, StatusIcon } from '../components/icons'
 import { addDays, dayAndMonth, formatDay, longWeekday } from '../domain/dates'
 import { mealMoment, mealTheme } from '../domain/mealTheme'
+import { mealSummary } from '../domain/parsing'
 import { focusMeal, nextMeal, orderedMains, pendingMeals, snackMeals } from '../domain/schedule'
 import {
   addExtra,
@@ -275,6 +276,9 @@ function NowCard(props: {
   const dessertStatus = log.items[dessertKey(meal.id)]?.status
   const complete = Boolean(status) && (!meal.dessert || Boolean(dessertStatus))
   const theme = mealTheme(meal)
+  const summary = mealSummary(meal)
+  // Plegado por defecto: la frase alcanza para saber qué comer y deja ver el resto del día.
+  const [showOptions, setShowOptions] = useState(false)
 
   return (
     <section className={`now theme-${theme}`} aria-labelledby="now-title">
@@ -288,6 +292,25 @@ function NowCard(props: {
           <h2 id="now-title">{meal.name}</h2>
         </div>
       </div>
+      {summary && (
+        <p className="now-summary">
+          {summary}{' '}
+          <button
+            type="button"
+            className="link"
+            aria-expanded={showOptions}
+            aria-controls="now-options"
+            onClick={() => setShowOptions((open) => !open)}
+          >
+            {showOptions ? 'Ocultar opciones' : 'Ver opciones'}
+          </button>
+        </p>
+      )}
+      {showOptions && (
+        <div id="now-options" className="now-options">
+          <PlanOptions sections={[...meal.sections, ...(meal.dessert ?? [])]} />
+        </div>
+      )}
       <StatusChoices variant="primary" label={`Cómo fue ${meal.name}`} value={status} onSelect={(s) => props.onMark(meal.id, s)} />
       {meal.dessert && (
         <div className="now-dessert">
@@ -300,8 +323,6 @@ function NowCard(props: {
           />
         </div>
       )}
-      <h3 className="sheet-label">Qué comer</h3>
-      <PlanOptions sections={[...meal.sections, ...(meal.dessert ?? [])]} />
       <div className="now-footer">
         <button type="button" className="link" onClick={props.onOpen}>
           Nota y contexto

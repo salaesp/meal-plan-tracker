@@ -37,6 +37,24 @@ export function sectionHint(section: Section): string {
     .join(' · ')
 }
 
+/** Arranca en minúscula para que se lea seguido dentro de una frase. */
+const lowerFirst = (text: string) => text.charAt(0).toLocaleLowerCase('es') + text.slice(1)
+
+/**
+ * Qué comer en una frase, con los resúmenes de cada sección:
+ * "Pollo o pescado + arroz o fideos. Postre: fruta o yogur."
+ */
+export function mealSummary(meal: Pick<Meal, 'sections' | 'dessert'>): string {
+  const main = meal.sections
+    .map(sectionHint)
+    .filter(Boolean)
+    .map((hint, index) => (index === 0 ? hint : lowerFirst(hint)))
+    .join(' + ')
+  const dessert = (meal.dessert ?? []).map(sectionHint).filter(Boolean).map(lowerFirst).join(' + ')
+  const parts = [main, dessert && `Postre: ${dessert}`].filter(Boolean)
+  return parts.map((part) => (/[.!?]$/.test(part) ? part : `${part}.`)).join(' ')
+}
+
 export function parseSections(value: unknown): Section[] {
   return asArray(value)
     .slice(0, MAX_SECTIONS)
