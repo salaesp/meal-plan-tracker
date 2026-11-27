@@ -3,6 +3,8 @@ export interface User {
   id: string
   name: string
   email: string
+  /** Foto de perfil (Google), si hay. */
+  image?: string
 }
 
 export type AuthState =
@@ -35,8 +37,9 @@ export function readCachedUser(storage: Pick<Storage, 'getItem'>): User | null {
   try {
     const value: unknown = JSON.parse(storage.getItem(USER_KEY) ?? 'null')
     if (typeof value !== 'object' || value === null) return null
-    const { id, name, email } = value as Record<string, unknown>
-    return typeof id === 'string' && typeof name === 'string' && typeof email === 'string' ? { id, name, email } : null
+    const { id, name, email, image } = value as Record<string, unknown>
+    if (typeof id !== 'string' || typeof name !== 'string' || typeof email !== 'string') return null
+    return typeof image === 'string' && image ? { id, name, email, image } : { id, name, email }
   } catch {
     return null
   }

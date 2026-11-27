@@ -184,4 +184,13 @@ describe('estado de sesión en la app', () => {
     expect(readCachedUser({ getItem: () => '{roto' })).toBeNull()
     expect(readCachedUser({ getItem: () => '{"id":1}' })).toBeNull()
   })
+
+  it('recuerda la foto de perfil si la hay', () => {
+    const base = { id: 'u1', name: 'Ana', email: 'ana@example.com' }
+    expect(readCachedUser({ getItem: () => JSON.stringify({ ...base, image: 'https://x/a.png' }) })).toEqual({
+      ...base,
+      image: 'https://x/a.png',
+    })
+    expect(readCachedUser({ getItem: () => JSON.stringify({ ...base, image: 3 }) })).toEqual(base)
+  })
 })

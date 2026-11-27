@@ -22,7 +22,9 @@ export function AuthGate({ children }: { children: (account: Account) => ReactNo
   const state = resolveAuth(
     {
       isPending: session.isPending,
-      user: user ? { id: user.id, name: user.name, email: user.email } : null,
+      user: user
+        ? { id: user.id, name: user.name, email: user.email, ...(user.image ? { image: user.image } : {}) }
+        : null,
       error: session.error,
     },
     cached,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Account } from './auth/AuthGate'
 import { DESKTOP_QUERY, Toast, useMediaQuery, type Notify, type ToastMessage } from './components/common'
+import { Avatar } from './components/Avatar'
 import { Icon, type IconName } from './components/icons'
 import { isISODate, toISODate } from './domain/dates'
 import { activatePlan } from './domain/tracking'
@@ -10,6 +11,7 @@ import { DesktopDayScreen } from './screens/DesktopDayScreen'
 import { Onboarding } from './screens/Onboarding'
 import { PlanScreen } from './screens/PlanScreen'
 import { ReviewScreen } from './screens/ReviewScreen'
+import { SettingsSheet } from './screens/SettingsSheet'
 import { WeekScreen } from './screens/WeekScreen'
 import { useAppData, type Update } from './store/useAppData'
 import { usePlanImport, type PlanImport } from './store/usePlanImport'
@@ -99,6 +101,7 @@ interface MainProps {
 
 function Main({ account, data, update, replace, importer, hash, today, saveFailed }: MainProps) {
   const [toast, setToast] = useState<ToastMessage | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const desktop = useMediaQuery(DESKTOP_QUERY)
   const [, route = '', dateParam, itemKey = ''] = hash.split('/')
   // Las rutas con fecha futura o inválida caen en hoy.
@@ -157,7 +160,6 @@ function Main({ account, data, update, replace, importer, hash, today, saveFaile
           account={account}
           data={data}
           update={update}
-          replace={replace}
           today={today}
           importer={importer}
         />
@@ -188,16 +190,43 @@ function Main({ account, data, update, replace, importer, hash, today, saveFaile
     )
   }
 
+  const user = account.user
   return (
     <>
+      <header className="app-bar">
+        <span className="app-name">Mi plan</span>
+        <button
+          type="button"
+          className="avatar-button"
+          aria-label={user ? `Ajustes de la cuenta de ${user.name || user.email}` : 'Ajustes'}
+          aria-haspopup="dialog"
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Avatar user={user} />
+        </button>
+      </header>
       <main className={desktop && tab === 'hoy' ? 'wide' : undefined}>
         {saveFailed && (
           <p className="notice error" role="alert">
-            No se pudo guardar en este dispositivo. Exportá un backup desde Plan.
+            No se pudo guardar en este dispositivo.{' '}
+            <button type="button" className="link" onClick={() => setSettingsOpen(true)}>
+              Exportá un backup desde Ajustes
+            </button>
+            .
           </p>
         )}
         {screen}
       </main>
+      {settingsOpen && (
+        <SettingsSheet
+          account={account}
+          data={data}
+          replace={replace}
+          today={today}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       <Toast toast={toast} onDismiss={dismiss} />
       <nav className="tabs" aria-label="Secciones">
         {TABS.map((entry) => (

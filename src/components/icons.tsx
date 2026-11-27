@@ -53,6 +53,15 @@ const PATHS = {
   minus: <path d="M5 12h14" />,
   share: <path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6" />,
   file: <path d="M6 3h8l5 5v13H6zM14 3v5h5" />,
+  person: (
+    <>
+      <circle cx="12" cy="8.5" r="4" />
+      <path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6" />
+    </>
+  ),
+  download: <path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5M5 19.5h14" />,
+  upload: <path d="M12 14.5v-11M7.5 8l4.5-4.5L16.5 8M5 19.5h14" />,
+  logout: <path d="M14 4.5H6.5v15H14M10.5 12h10M17 8.5l3.5 3.5-3.5 3.5" />,
 } satisfies Record<string, ReactNode>
 
 export type IconName = keyof typeof PATHS
